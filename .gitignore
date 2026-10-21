@@ -1,0 +1,24 @@
+# Agent files
+AGENTS.md
+.agents
+.agent-tasks
+
+# Workspace config files
+.prettierignore
+
+# Python & Environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+env/
+venv/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project ephemeral directories
+runs/
