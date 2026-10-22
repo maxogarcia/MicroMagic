@@ -22,3 +22,6 @@ htmlcov/
 
 # Project ephemeral directories
 runs/
+
+# The game environment package is source code, not a virtualenv.
+!src/micromagic/env/
