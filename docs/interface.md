@@ -45,3 +45,11 @@ Card features (31) = card-id one-hot (25) + cost, power, toughness (÷10) + is-l
 
 - `micromagic.env.aec.MicroMagicAECEnv`: PettingZoo AEC env, observations are `{"observation", "action_mask"}`, rewards ±1 at game end, 0 for a draw.
 - `micromagic.env.gym_env.MicroMagicGymEnv(opponent_policy, agent_player)`: Gymnasium single-agent env; mask in `info["action_mask"]` and `action_masks()` (for sb3-contrib MaskablePPO). The default opponent plays uniformly random legal actions.
+
+## Agents (`micromagic/agents/`)
+
+- `Agent` (`agents/base.py`): `name`, `act(obs, mask) -> int`, `reset()`, `save(path)`, `load(path)`. `obs` is `GameState.observe(player)` for the acting seat and `mask` is `legal_actions()`; `act` must return an index with `mask[action]` true. An `Agent` is callable, so it can be passed directly as `MicroMagicGymEnv(opponent_policy=agent)`. It satisfies the harness's `tournaments.AgentProtocol`.
+- `RandomAgent(seed)`: uniform over legal actions; the same seed gives the same choices.
+- `MaskablePPOAgent` (`agents/ppo.py`, needs the `rl` extra): wraps an sb3-contrib `MaskablePPO` model. `MaskablePPOAgent.from_checkpoint("runs/ppo/<run>/model.zip")` loads a trained policy; `deterministic=True` (default) plays the most likely legal action.
+
+Training: `python -m micromagic.training.train_ppo --config configs/ppo_stub.yaml`. Half the training envs seat the learner first and half second. After training it plays `eval.games` games against the eval opponent through `TournamentRunner` (alternating seats) and writes `eval_matches.csv` and `eval_summary.csv` (Wilson CIs) next to `model.zip` and SB3's `progress.csv`.
