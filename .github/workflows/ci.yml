@@ -29,7 +29,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[test]
+          # CPU-only torch keeps the runner install small; the RL extra then reuses it.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e .[test,rl]
 
       - name: Run test suite
         run: |
