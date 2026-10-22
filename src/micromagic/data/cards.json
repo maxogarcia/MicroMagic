@@ -1,0 +1,12 @@
+{
+  "cards": [
+    {"id": 0, "name": "Basic Land", "type": "land", "cost": 0},
+    {"id": 1, "name": "Toy Creature 1/1", "type": "creature", "cost": 1, "power": 1, "toughness": 1},
+    {"id": 2, "name": "Toy Creature 2/2", "type": "creature", "cost": 2, "power": 2, "toughness": 2},
+    {"id": 3, "name": "Toy Creature 3/3", "type": "creature", "cost": 3, "power": 3, "toughness": 3},
+    {"id": 4, "name": "Toy Creature 4/4", "type": "creature", "cost": 4, "power": 4, "toughness": 4}
+  ],
+  "decks": {
+    "toy": {"Basic Land": 13, "Toy Creature 1/1": 4, "Toy Creature 2/2": 6, "Toy Creature 3/3": 4, "Toy Creature 4/4": 3}
+  }
+}
