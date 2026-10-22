@@ -20,8 +20,9 @@ class MicroMagicGymEnv(gym.Env):
     uniformly among legal actions.
 
     on_illegal="raise" (default) raises on an illegal action so masking bugs
-    surface immediately. on_illegal="pass" plays PASS instead and sets
-    info["illegal_action"], for unmasked agents and Gymnasium's env checker.
+    surface immediately. on_illegal="pass" plays PASS instead (or, when PASS is
+    not legal because a spell is choosing its target, the first legal action)
+    and sets info["illegal_action"], for unmasked agents and Gymnasium's env checker.
     """
 
     metadata = {"render_modes": ["ansi"]}
@@ -55,9 +56,10 @@ class MicroMagicGymEnv(gym.Env):
 
     def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
         action = int(action)
-        is_illegal = not self.state.legal_actions()[action]
+        mask = self.state.legal_actions()
+        is_illegal = not mask[action]
         if is_illegal and self.on_illegal == "pass":
-            action = PASS
+            action = PASS if mask[PASS] else int(np.flatnonzero(mask)[0])
         self.state.step(action)
         self._play_opponent()
 

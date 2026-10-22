@@ -1,13 +1,15 @@
-"""Rules tests for toy mode: lands, vanilla creatures, combat, and game end."""
-
-import numpy as np
+"""Rules tests for the core turn loop: lands, mana, creatures, combat, and game end."""
 
 from micromagic.env import spec
-from micromagic.env.spec import ATTACK, BLOCK, EMPTY, PASS, PLAY_HAND, Phase
+from micromagic.env.spec import ATTACK, BLOCK, CARD_IDS, EMPTY, PASS, PLAY_HAND, Phase
 from micromagic.env.state import GameState
 
 
-LAND, BEAR_1, BEAR_2, BEAR_3, BEAR_4 = range(5)
+LAND = CARD_IDS["Mountain"]
+ONE_ONE = CARD_IDS["Suntail Hawk"]
+TWO_TWO = CARD_IDS["Grizzly Bears"]
+THREE_THREE = CARD_IDS["Trained Armodon"]
+TWO_FOUR = CARD_IDS["Giant Spider"]
 
 
 def make_state(hand0: list[int], hand1: list[int] | None = None) -> GameState:
@@ -40,16 +42,16 @@ def test_one_land_per_turn() -> None:
 
 
 def test_creature_needs_enough_untapped_lands() -> None:
-    state = make_state([BEAR_2])
+    state = make_state([TWO_TWO])
     state.lands_total[0] = 1
     assert not state.legal_actions()[PLAY_HAND.start]
     state.lands_total[0] = 2
     state.step(PLAY_HAND.start)
-    assert state.creature[0, 0] == BEAR_2 and state.lands_tapped[0] == 2
+    assert state.creature[0, 0] == TWO_TWO and state.lands_tapped[0] == 2
 
 
 def test_summoning_sick_creature_cannot_attack() -> None:
-    state = make_state([BEAR_1])
+    state = make_state([ONE_ONE])
     state.lands_total[0] = 1
     state.step(PLAY_HAND.start)
     state.step(PASS)  # leaving main 1 skips combat: nothing can attack
@@ -75,7 +77,7 @@ def test_drawing_from_empty_library_loses() -> None:
 
 def test_unblocked_attacker_deals_damage() -> None:
     state = make_state([])
-    put_creature(state, 0, 0, BEAR_3)
+    put_creature(state, 0, 0, THREE_THREE)
     state.step(PASS)
     assert state.phase == Phase.DECLARE_ATTACKERS
     state.step(ATTACK.start)
@@ -86,8 +88,8 @@ def test_unblocked_attacker_deals_damage() -> None:
 
 def test_defender_chooses_blocks_and_trades() -> None:
     state = make_state([])
-    put_creature(state, 0, 0, BEAR_2)
-    put_creature(state, 1, 0, BEAR_2)
+    put_creature(state, 0, 0, TWO_TWO)
+    put_creature(state, 1, 0, TWO_TWO)
     state.step(PASS)
     state.step(ATTACK.start)
     state.step(PASS)
@@ -101,22 +103,22 @@ def test_defender_chooses_blocks_and_trades() -> None:
 
 def test_bigger_blocker_survives_and_damage_wears_off() -> None:
     state = make_state([])
-    put_creature(state, 0, 0, BEAR_2)
-    put_creature(state, 1, 0, BEAR_4)
+    put_creature(state, 0, 0, TWO_TWO)
+    put_creature(state, 1, 0, TWO_FOUR)
     state.step(PASS)
     state.step(ATTACK.start)
     state.step(PASS)
     state.step(BLOCK.start)
     assert state.creature[0, 0] == EMPTY
-    assert state.creature[1, 0] == BEAR_4 and state.damage[1, 0] == 2
+    assert state.creature[1, 0] == TWO_FOUR and state.damage[1, 0] == 2
     state.step(PASS)  # end turn
     assert state.damage[1, 0] == 0
 
 
 def test_lethal_damage_ends_game() -> None:
     state = make_state([])
-    put_creature(state, 0, 0, BEAR_4)
-    state.life[1] = 4
+    put_creature(state, 0, 0, THREE_THREE)
+    state.life[1] = 3
     state.step(PASS)
     state.step(ATTACK.start)
     state.step(PASS)
