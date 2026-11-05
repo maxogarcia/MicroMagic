@@ -1,12 +1,41 @@
 {
   "cards": [
-    {"id": 0, "name": "Basic Land", "type": "land", "cost": 0},
-    {"id": 1, "name": "Toy Creature 1/1", "type": "creature", "cost": 1, "power": 1, "toughness": 1},
-    {"id": 2, "name": "Toy Creature 2/2", "type": "creature", "cost": 2, "power": 2, "toughness": 2},
-    {"id": 3, "name": "Toy Creature 3/3", "type": "creature", "cost": 3, "power": 3, "toughness": 3},
-    {"id": 4, "name": "Toy Creature 4/4", "type": "creature", "cost": 4, "power": 4, "toughness": 4}
+    {"id": 0, "name": "Mountain", "type": "land"},
+    {"id": 1, "name": "Forest", "type": "land"},
+    {"id": 2, "name": "Raging Goblin", "type": "creature", "cost": 1, "power": 1, "toughness": 1, "keywords": ["haste"]},
+    {"id": 3, "name": "Suntail Hawk", "type": "creature", "cost": 1, "power": 1, "toughness": 1, "keywords": ["flying"]},
+    {"id": 4, "name": "Goblin Piker", "type": "creature", "cost": 2, "power": 2, "toughness": 1, "keywords": ["cant_block"]},
+    {"id": 5, "name": "Wind Drake", "type": "creature", "cost": 3, "power": 2, "toughness": 2, "keywords": ["flying"]},
+    {"id": 6, "name": "Gray Ogre", "type": "creature", "cost": 3, "power": 2, "toughness": 2},
+    {"id": 7, "name": "Hill Giant", "type": "creature", "cost": 4, "power": 3, "toughness": 3},
+    {"id": 8, "name": "Charging Monstrosaur", "type": "creature", "cost": 5, "power": 5, "toughness": 5, "keywords": ["trample", "haste"]},
+    {"id": 9, "name": "Shock", "type": "spell", "cost": 1, "template": "burn", "amount": 2, "target": "any"},
+    {"id": 10, "name": "Volcanic Hammer", "type": "spell", "cost": 2, "template": "burn", "amount": 3, "target": "any"},
+    {"id": 11, "name": "Lava Axe", "type": "spell", "cost": 5, "template": "burn", "amount": 5, "target": "player"},
+    {"id": 12, "name": "Giant Growth", "type": "spell", "cost": 1, "template": "pump", "amount": 3, "target": "creature"},
+    {"id": 13, "name": "Typhoid Rats", "type": "creature", "cost": 1, "power": 1, "toughness": 1, "keywords": ["deathtouch"]},
+    {"id": 14, "name": "Healer's Hawk", "type": "creature", "cost": 1, "power": 1, "toughness": 1, "keywords": ["flying", "lifelink"]},
+    {"id": 15, "name": "Grizzly Bears", "type": "creature", "cost": 2, "power": 2, "toughness": 2},
+    {"id": 16, "name": "Deadly Recluse", "type": "creature", "cost": 2, "power": 1, "toughness": 2, "keywords": ["reach", "deathtouch"]},
+    {"id": 17, "name": "Child of Night", "type": "creature", "cost": 2, "power": 2, "toughness": 1, "keywords": ["lifelink"]},
+    {"id": 18, "name": "Trained Armodon", "type": "creature", "cost": 3, "power": 3, "toughness": 3},
+    {"id": 19, "name": "Giant Spider", "type": "creature", "cost": 4, "power": 2, "toughness": 4, "keywords": ["reach"]},
+    {"id": 20, "name": "Eviscerate", "type": "spell", "cost": 4, "template": "destroy", "target": "creature"},
+    {"id": 21, "name": "Divination", "type": "spell", "cost": 3, "template": "draw", "amount": 2},
+    {"id": 22, "name": "Serra Angel", "type": "creature", "cost": 5, "power": 4, "toughness": 4, "keywords": ["flying", "vigilance"]},
+    {"id": 23, "name": "Natural Spring", "type": "spell", "cost": 5, "template": "gain_life", "amount": 8},
+    {"id": 24, "name": "Colossal Dreadmaw", "type": "creature", "cost": 6, "power": 6, "toughness": 6, "keywords": ["trample"]}
   ],
   "decks": {
-    "toy": {"Basic Land": 13, "Toy Creature 1/1": 4, "Toy Creature 2/2": 6, "Toy Creature 3/3": 4, "Toy Creature 4/4": 3}
+    "aggro": {
+      "Mountain": 12, "Raging Goblin": 3, "Suntail Hawk": 2, "Goblin Piker": 3, "Wind Drake": 1,
+      "Gray Ogre": 1, "Hill Giant": 2, "Charging Monstrosaur": 1, "Shock": 2, "Volcanic Hammer": 1,
+      "Lava Axe": 1, "Giant Growth": 1
+    },
+    "midrange": {
+      "Forest": 13, "Typhoid Rats": 1, "Healer's Hawk": 1, "Grizzly Bears": 2, "Deadly Recluse": 2,
+      "Child of Night": 1, "Trained Armodon": 2, "Giant Spider": 2, "Eviscerate": 2, "Divination": 1,
+      "Serra Angel": 1, "Natural Spring": 1, "Colossal Dreadmaw": 1
+    }
   }
 }
