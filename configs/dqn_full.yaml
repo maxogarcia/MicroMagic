@@ -1,0 +1,33 @@
+# Masked DQN on the full 25-card game (M2). Same matchups, opponent pool and
+# evaluation as configs/ppo_full.yaml.
+# python -m micromagic.training.train_dqn --config configs/dqn_full.yaml
+seed: 0
+total_timesteps: 1000000
+n_envs: 8
+opponents:
+  random: 0.1
+  heuristic: 0.2
+  self: 0.7
+snapshot_every: 50000
+out_dir: runs/dqn
+dqn:
+  learning_rate: 1.0e-4
+  buffer_size: 200000
+  learning_starts: 10000
+  batch_size: 128
+  gamma: 0.99
+  train_freq: 4
+  gradient_steps: 1
+  target_update_interval: 5000
+  exploration_fraction: 0.3
+  exploration_final_eps: 0.05
+  net_arch: [256, 256]
+curve:
+  every: 50000
+  games: 100
+  seed: 200000
+  opponents: [random, heuristic]
+eval:
+  opponents: [random, heuristic]
+  games: 500
+  seed: 100000
