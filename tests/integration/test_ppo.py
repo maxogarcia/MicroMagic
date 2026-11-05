@@ -46,7 +46,7 @@ def _write(path: Path, config: dict) -> Path:
 
 def test_run_writes_all_outputs(run: tuple[Path, dict]) -> None:
     out, _ = run
-    for name in ("config.yaml", "progress.csv", "model.zip", "eval_matches.csv", "eval_summary.csv"):
+    for name in ("config.yaml", "progress.csv", "model.zip", "eval_matches_random.csv", "eval_summary.csv", "eval_by_deck_seat.csv"):
         assert (out / name).exists(), name
 
 
