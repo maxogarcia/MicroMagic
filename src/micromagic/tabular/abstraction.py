@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from micromagic.agents.heuristic import decode
 from micromagic.env.spec import Phase
 
 
@@ -82,6 +81,8 @@ def extract_abstract_state(obs: np.ndarray) -> tuple[int, int, int, int, int, in
         5: Cards in hand bucket (0..2)
         6: Phase/decision context bucket (0..4)
     """
+    from micromagic.agents.heuristic import decode
+
     view = decode(obs)
     own_power = sum(c.power for c in view.mine)
     opp_power = sum(c.power for c in view.theirs)

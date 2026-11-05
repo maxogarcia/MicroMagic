@@ -16,13 +16,26 @@ from __future__ import annotations
 from pathlib import Path
 import numpy as np
 
-from micromagic.agents import Agent, MonteCarloAgent, SarsaAgent, TabularAgent
+from micromagic.agents import (
+    Agent,
+    MonteCarloAgent,
+    RandomAgent,
+    SarsaAgent,
+    TabularAgent,
+)
+from micromagic.env import cards as card_db
 from micromagic.env.spec import NUM_ACTIONS
 from micromagic.env.state import GameState
 from micromagic.tabular.abstraction import NUM_STATES
 from micromagic.tabular.macros import NUM_MACROS
 from micromagic.tournaments import AgentProtocol
-from micromagic.training.train_tabular import train_tabular
+from micromagic.training.train_tabular import (
+    ALL_DECK_PAIRS,
+    by_deck_and_seat_tabular,
+    play_tabular_matchups,
+    tabular_env_factory,
+    train_tabular,
+)
 
 
 def test_tabular_agent_interface() -> None:
@@ -184,3 +197,33 @@ def test_train_tabular_smoke() -> None:
     )
     assert isinstance(sarsa_agent, SarsaAgent)
     assert np.count_nonzero(sarsa_agent.q_table) > 0
+
+
+def test_tabular_matchup_rotation_with_mirrors() -> None:
+    factory = tabular_env_factory(base_seed=0, include_mirrors=True)
+    for game_id in range(8):
+        state = factory(game_id)
+        expected_pair = ALL_DECK_PAIRS[(game_id // 2) % len(ALL_DECK_PAIRS)]
+        for seat, deck_name in enumerate(expected_pair):
+            assert sorted(state.library[seat]) == sorted(card_db.DECKS[deck_name])
+
+    # Run 8 games between two RandomAgents
+    agent_a = RandomAgent(seed=10, name="AgentA")
+    agent_b = RandomAgent(seed=20, name="AgentB")
+    result = play_tabular_matchups(
+        agent_a, agent_b, games=8, base_seed=100, include_mirrors=True
+    )
+    table = by_deck_and_seat_tabular(
+        result, "AgentA", base_seed=100, include_mirrors=True
+    )
+
+    # Verify both cross and mirror matchups are present
+    matchups = set(table["matchup"])
+    assert "aggro_vs_midrange" in matchups
+    assert "midrange_vs_aggro" in matchups
+    assert "aggro_vs_aggro" in matchups
+    assert "midrange_vs_midrange" in matchups
+
+    # Overall row verification
+    overall = table[(table["deck"] == "all") & (table["seat"] == "both")].iloc[0]
+    assert overall["games"] == 8
