@@ -201,6 +201,7 @@ def train_tabular(
         out_path.mkdir(parents=True, exist_ok=True)
 
     deck_pairs = ALL_DECK_PAIRS if include_mirrors else DECK_PAIRS
+    curve_rows: list[dict[str, Any]] = []
 
     # Training loop
     for ep in range(episodes):
@@ -295,20 +296,40 @@ def train_tabular(
                 if isinstance(opponent, str)
                 else fixed_opp
             )
-            res = play_tabular_matchups(
-                agent,
-                eval_opp,
-                games=eval_games,
-                base_seed=seed + 900_000 + ep,
-                include_mirrors=include_mirrors,
-            )
-            df = by_deck_and_seat_tabular(
-                res,
-                agent.name,
-                base_seed=seed + 900_000 + ep,
-                include_mirrors=include_mirrors,
-            )
-            df.to_csv(out_path / f"eval_ep{ep + 1}.csv", index=False)
+            prev_det = agent.deterministic
+            agent.deterministic = True
+            try:
+                res = play_tabular_matchups(
+                    agent,
+                    eval_opp,
+                    games=eval_games,
+                    base_seed=seed + 900_000 + ep,
+                    include_mirrors=include_mirrors,
+                )
+                df = by_deck_and_seat_tabular(
+                    res,
+                    agent.name,
+                    base_seed=seed + 900_000 + ep,
+                    include_mirrors=include_mirrors,
+                )
+                df.to_csv(out_path / f"eval_ep{ep + 1}.csv", index=False)
+                overall = df[(df["deck"] == "all") & (df["seat"] == "both")].iloc[0]
+                curve_rows.append(
+                    {
+                        "episodes": ep + 1,
+                        "win_rate": float(overall["win_rate"]),
+                        "ci_lower": float(overall["ci_lower"]),
+                        "ci_upper": float(overall["ci_upper"]),
+                        "wins": int(overall["wins"]),
+                        "draws": int(overall["draws"]),
+                        "games": int(overall["games"]),
+                    }
+                )
+                pd.DataFrame(curve_rows).to_csv(
+                    out_path / "learning_curve.csv", index=False
+                )
+            finally:
+                agent.deterministic = prev_det
 
     if out_path is not None:
         agent.save(out_path / "final_agent.npz")
