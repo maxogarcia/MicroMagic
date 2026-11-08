@@ -89,6 +89,9 @@ class MicroMagicGymEnv(gym.Env):
             mask = self.state.legal_actions()
             if self.opponent_policy is None:
                 action = int(self.np_random.choice(np.flatnonzero(mask)))
+            elif hasattr(self.opponent_policy, "act_from_state"):
+                # Search opponents (MCTSAgent) plan on determinized copies of the state.
+                action = int(self.opponent_policy.act_from_state(self.state, opponent))
             else:
                 action = int(self.opponent_policy(self.state.observe(opponent), mask))
             self.state.step(action)

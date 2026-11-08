@@ -1,0 +1,10 @@
+# Environment speed benchmark (team plan, week of Nov 2: >= 2000 steps/s per core).
+# python scripts/benchmark_env.py --config configs/benchmark_env.yaml
+seed: 0
+games_per_repeat: 300     # random-vs-random games timed in each repeat
+repeats: 5                # report the median repeat; min and max show the spread
+pin_to_one_core: true     # pins the process to one CPU (Linux) so the number is per core
+target_steps_per_sec: 2000
+state_samples: 200        # mid-game states used to time clone() and determinize()
+calls_per_state: 50
+out_dir: results/benchmarks

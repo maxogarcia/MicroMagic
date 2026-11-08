@@ -117,6 +117,19 @@ Card features (45) = card-id one-hot (25) + mana value, power, toughness (÷10) 
 
 Training: `python -m micromagic.training.train_ppo --config configs/ppo_stub.yaml`. Half the training envs seat the learner first and half second. After training it plays `eval.games` games against the eval opponent through `TournamentRunner` (alternating seats) and writes `eval_matches.csv` and `eval_summary.csv` (Wilson CIs) next to `model.zip` and SB3's `progress.csv`.
 
+## Search agents (`micromagic/search/`)
+
+`MCTSAgent(determinizations=4, simulations=64, c_puct=1.5, evaluator=None, dirichlet_alpha=None, seed=None)` is determinized MCTS: for each decision it samples K worlds with `GameState.determinize(player, rng)`, runs a PUCT search in each, and plays the action with the most root visits summed over the worlds. Forced moves (one legal action) skip the search.
+
+- **Needs the game state.** Search agents implement `act_from_state(state, player) -> int`. `TournamentRunner` and `MicroMagicGymEnv` (as the opponent) call it automatically when an agent has it; other agents keep using `act(obs, mask)`. The search only ever touches `determinize()`d copies, and `determinize()` shuffles hidden cards from a sorted order, so decisions cannot depend on where the real hidden cards are (tested).
+- **Evaluators** return `(priors over 29 actions, value in [-1, 1] for the given player)`. `RolloutEvaluator(depth=10)` (default) uses uniform priors and a short random playout scored by `board_value`; `HeuristicEvaluator` skips the playout. Unfinished positions score within ±0.6 so the search can tell a real win from a good-looking board.
+- **AlphaZero-lite** plugs in by passing an evaluator that wraps the policy/value network (read `state.observe(player)`, return softmax over legal actions and the value head), plus `dirichlet_alpha` for root noise during self-play. `MCTSAgent.policy(state, player)` returns the visit distribution to use as the policy training target.
+- Evaluation: `python scripts/eval_mcts.py --config configs/mcts_vs_random.yaml` plays MCTS against Random through the runner and writes per-game results and a Wilson-interval summary by deck and seat to `results/mcts/`.
+
+## Speed benchmark
+
+`python scripts/benchmark_env.py --config configs/benchmark_env.yaml` pins the process to one core and times random-vs-random play: `engine` (legal_actions + step), `agent_loop` (legal_actions + observe + step, the headline number), and the Gym wrapper when Gymnasium is installed, plus `clone()` and `determinize()`. Results, with the machine and git commit, go to `results/benchmarks/`. The target is 2,000 agent-loop steps/s per core.
+
 ## Testing
 
 - `pytest` runs the contract, rules, per-card, and wrapper tests, plus a 300-game mask fuzz (set `MICROMAGIC_FUZZ_GAMES` to change it).
