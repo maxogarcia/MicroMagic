@@ -159,3 +159,21 @@ def test_replay_locked_while_two_humans_are_playing(server) -> None:
     created = json.loads(raw)
     status, _ = _call(f"{server}/api/games/{created['id']}/replay?seat=0&token={created['seats']['0']['token']}")
     assert status == 403
+
+
+def test_skipped_blocks_are_explained_in_the_log() -> None:
+    """When attackers face no legal blocker, the log says why instead of silently skipping blocks."""
+    from micromagic.env.spec import Phase
+
+    explained = 0
+    for seed in range(40):
+        game = new_session([{"kind": "bot", "bot": "heuristic"}, {"kind": "bot", "bot": "heuristic"}], seed=seed)
+        while not game.state.is_terminal():
+            st = game.state
+            finishing_attack = st.phase == Phase.DECLARE_ATTACKERS and st.attacking[st.active].any()
+            game.bot_step()
+            frame = game.recorder.frames[-1]
+            if finishing_attack and frame["action"] == PASS and game.state.phase != Phase.DECLARE_BLOCKERS:
+                assert any("block" in e for e in frame["events"]), frame
+                explained += 1
+    assert explained > 0

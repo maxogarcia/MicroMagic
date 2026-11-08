@@ -27,6 +27,7 @@ from micromagic.env.spec import (
     TARGET_OPP_CREATURE,
     TARGET_OPPONENT,
     CardType,
+    Keyword,
     Phase,
     SpellTemplate,
     TargetScope,
@@ -185,6 +186,29 @@ def describe_action(state: GameState, action: int) -> str:
     return f"Action {action}"
 
 
+def _why_no_blocks(state: GameState, action: int) -> str | None:
+    """If finishing attacks with `action` leaves the defender no legal block, say why (else None)."""
+    me, opp = state.active, 1 - state.active
+    if state.phase != Phase.DECLARE_ATTACKERS or action != PASS or not state.attacking[me].any():
+        return None
+    mine = [s for s in range(CREATURE_SLOTS) if state.creature[opp, s] != EMPTY]
+    if not mine:
+        return "{defender} has no creatures, so there are no blocks"
+    untapped = [s for s in mine if not state.tapped[opp, s]]
+    if not untapped:
+        return "{defender}'s creatures are all tapped, so none can block"
+    able = [s for s in untapped if not state.has_keyword(opp, s, Keyword.CANT_BLOCK)]
+    if not able:
+        names = sorted({_name(state.creature[opp, s]) for s in untapped})
+        return " and ".join(names) + " can't block"
+    attackers = np.flatnonzero(state.attacking[me])
+    if all(state.has_keyword(me, int(a), Keyword.FLYING) for a in attackers) and not any(
+        state.has_keyword(opp, s, Keyword.FLYING) or state.has_keyword(opp, s, Keyword.REACH) for s in able
+    ):
+        return "Only creatures with flying or reach can block flyers, so {defender} can't block"
+    return None
+
+
 def _events(before: dict, after: dict, names: tuple[str, str]) -> list[str]:
     """Life changes, creature deaths, and draws between two snapshots."""
     events = []
@@ -236,10 +260,14 @@ class GameRecorder:
         text = describe_action(state, action)
         turn, phase = state.turn, PHASE_LABELS[state.phase]
         before = self.frames[-1]["state"]
+        no_blocks = _why_no_blocks(state, action)
         state.step(action)
         after = snapshot(state)
+        events = _events(before, after, self.names)
+        if no_blocks and state.phase != Phase.DECLARE_BLOCKERS:
+            events.insert(0, no_blocks.format(defender=self.names[1 - actor]))
         frame = {"actor": actor, "action": int(action), "turn": turn, "phase": phase, "text": text,
-                 "events": _events(before, after, self.names), "state": after}
+                 "events": events, "state": after}
         self.frames.append(frame)
         return frame
 
