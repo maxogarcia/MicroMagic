@@ -49,6 +49,8 @@ def run_fuzz(games: int, seed: int = 0, check_every_action_every: int = 25) -> d
             legal = np.flatnonzero(state.legal_actions())
             # Every action the mask allows must be executable, not just the one we pick.
             if steps % check_every_action_every == 0:
+                mask = state.legal_actions()
+                assert [state.is_legal(a) for a in range(len(mask))] == mask.tolist(), f"is_legal disagrees: {state}"
                 for action in legal:
                     state.clone().step(int(action))
             state.step(int(rng.choice(legal)))
