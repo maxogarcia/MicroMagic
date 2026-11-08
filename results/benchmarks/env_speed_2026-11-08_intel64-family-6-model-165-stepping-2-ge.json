@@ -1,0 +1,65 @@
+{
+  "timestamp_utc": "2026-11-08T03:57:08+00:00",
+  "config": {
+    "seed": 0,
+    "games_per_repeat": 300,
+    "repeats": 5,
+    "pin_to_one_core": true,
+    "target_steps_per_sec": 2000,
+    "state_samples": 200,
+    "calls_per_state": 50,
+    "out_dir": "results/benchmarks"
+  },
+  "machine": {
+    "cpu": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+    "logical_cpus": 12,
+    "os": "Windows 11",
+    "python": "3.12.9",
+    "numpy": "2.2.6",
+    "git_commit": "4b96de8",
+    "pinned_cpu": null
+  },
+  "loops": {
+    "engine": {
+      "steps_per_sec_median": 16504.6,
+      "steps_per_sec_min": 16083.2,
+      "steps_per_sec_max": 17816.1,
+      "steps_per_repeat": [
+        41807,
+        41807,
+        41807,
+        41807,
+        41807
+      ]
+    },
+    "agent_loop": {
+      "steps_per_sec_median": 3740.9,
+      "steps_per_sec_min": 3016.8,
+      "steps_per_sec_max": 5936.4,
+      "steps_per_repeat": [
+        41807,
+        41807,
+        41807,
+        41807,
+        41807
+      ]
+    },
+    "gym_wrapper": {
+      "steps_per_sec_median": 1762.6,
+      "steps_per_sec_min": 1546.8,
+      "steps_per_sec_max": 1844.7,
+      "steps_per_repeat": [
+        20589,
+        20589,
+        20589,
+        20589,
+        20589
+      ]
+    }
+  },
+  "clone_us": 172.59,
+  "determinize_us": 332.82,
+  "headline_steps_per_sec": 3740.9,
+  "target_steps_per_sec": 2000.0,
+  "meets_target": true
+}
