@@ -161,7 +161,7 @@ class GameState:
     def step(self, action: int) -> None:
         if self._terminal:
             raise ValueError("Game is over; no actions are legal.")
-        if not 0 <= action < NUM_ACTIONS or not self.legal_actions()[action]:
+        if not self.is_legal(action):
             raise ValueError(f"Illegal action {action} in phase {self.phase.name}")
 
         if self.phase == Phase.CHOOSE_TARGET:
@@ -174,6 +174,35 @@ class GameState:
             self.attacking[self.active, action - ATTACK.start] = True
         elif action in BLOCK:
             self._assign_block(action - BLOCK.start)
+
+    def is_legal(self, action: int) -> bool:
+        """Whether one action is legal; agrees with legal_actions()[action] but checks only that action."""
+        if self._terminal or not 0 <= action < NUM_ACTIONS:
+            return False
+        me = self.active
+        if self.phase == Phase.CHOOSE_TARGET:
+            scope = int(card_db.TARGET[self.pending_card])
+            if action == TARGET_OPPONENT:
+                return scope in (TargetScope.ANY, TargetScope.PLAYER)
+            if scope not in (TargetScope.ANY, TargetScope.CREATURE):
+                return False
+            if action in TARGET_OPP_CREATURE:
+                return bool(self.creature[1 - me, action - TARGET_OPP_CREATURE.start] != EMPTY)
+            if action in TARGET_MY_CREATURE:
+                return bool(self.creature[me, action - TARGET_MY_CREATURE.start] != EMPTY)
+            return False
+
+        if action == PASS:
+            return True
+        if self.phase in (Phase.MAIN1, Phase.MAIN2):
+            slot = action - PLAY_HAND.start
+            return action in PLAY_HAND and slot < self.hand_count[me] and self._can_play(me, int(self.hand[me, slot]))
+        if self.phase == Phase.DECLARE_ATTACKERS:
+            return action in ATTACK and self._can_attack(me, action - ATTACK.start)
+        if self.phase == Phase.DECLARE_BLOCKERS and action in BLOCK:
+            blocker = int(self.blocker_queue[self.blocker_cursor])
+            return (action - BLOCK.start) in self._blockable_attackers(blocker)
+        return False
 
     def current_player(self) -> int:
         if self.phase == Phase.DECLARE_BLOCKERS:
@@ -207,9 +236,9 @@ class GameState:
 
         # Only the observer's own hand is visible; the opponent's is just a count.
         hand_obs = obs[OBS_HAND].reshape(HAND_SIZE, HAND_SLOT_FEATURES)
-        for slot in range(self.hand_count[player]):
-            hand_obs[slot, 0] = 1.0
-            hand_obs[slot, 1:] = card_db.FEATURE_TABLE[self.hand[player, slot]]
+        n = int(self.hand_count[player])
+        hand_obs[:n, 0] = 1.0
+        hand_obs[:n, 1:] = card_db.FEATURE_TABLE[self.hand[player, :n]]
 
         self._observe_creatures(player, obs[OBS_MY_CREATURES])
         self._observe_creatures(opp, obs[OBS_OPP_CREATURES])
@@ -238,19 +267,23 @@ class GameState:
         return new
 
     def determinize(self, player: int, rng: np.random.Generator) -> "GameState":
-        """Resample everything `player` cannot see: the opponent's hand and both library orders."""
+        """Resample everything `player` cannot see: the opponent's hand and both library orders.
+
+        Hidden cards are sorted before shuffling, so the result depends only on what `player`
+        can see and on `rng`, never on where the true hidden cards are.
+        """
         new = self.clone()
         opp = 1 - player
 
         opp_hand = new.hand[opp, : new.hand_count[opp]]
         opp_remaining = new.library[opp][new.library_top[opp] :]
-        pool = rng.permutation(np.concatenate([opp_hand, opp_remaining]))
+        pool = rng.permutation(np.sort(np.concatenate([opp_hand, opp_remaining])))
         n = int(new.hand_count[opp])
         new.hand[opp, :n] = pool[:n]
         new.library[opp][new.library_top[opp] :] = pool[n:]
 
         mine = new.library[player][new.library_top[player] :]
-        new.library[player][new.library_top[player] :] = rng.permutation(mine)
+        new.library[player][new.library_top[player] :] = rng.permutation(np.sort(mine))
         new.rng = np.random.default_rng(rng.integers(2**63))
         return new
 
