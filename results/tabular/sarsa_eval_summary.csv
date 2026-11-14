@@ -1,0 +1,3 @@
+agent,wins,losses,draws,total_games,effective_win_rate,ci_lower,ci_upper,opponent
+SARSA_seed42,330,167,3,500,0.663,0.6204648786760945,0.7030495863334396,random
+random,167,330,3,500,0.337,0.2969504136665605,0.37953512132390554,random
