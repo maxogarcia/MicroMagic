@@ -7,10 +7,13 @@ satisfying ADR-009 and docs/Aditya_Implementation_Plan.md §4.
 from __future__ import annotations
 
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from micromagic.agents.heuristic import Creature, decode
+if TYPE_CHECKING:
+    from micromagic.agents.heuristic import Creature
+
 from micromagic.env import cards as card_db
 from micromagic.env.spec import (
     ATTACK,
@@ -72,6 +75,8 @@ def compute_macro_mask(obs: np.ndarray, primitive_mask: np.ndarray) -> np.ndarra
 
     Guarantees at least one macro action is True whenever primitive_mask has legal actions.
     """
+    from micromagic.agents.heuristic import decode
+
     macro_mask = np.zeros(NUM_MACROS, dtype=bool)
     if not primitive_mask.any():
         return macro_mask
@@ -177,6 +182,8 @@ def execute_macro(macro: int, obs: np.ndarray, primitive_mask: np.ndarray) -> in
     """
     if not primitive_mask.any():
         return PASS
+
+    from micromagic.agents.heuristic import decode
 
     view = decode(obs)
     chosen_action: int | None = None
