@@ -1,0 +1,41 @@
+# AlphaZero-lite on the full 25-card game (M3). Same real-env-step budget, eval
+# opponents and eval seeds as configs/ppo_full.yaml and configs/dqn_full.yaml.
+# Search simulations are logged separately as `search_evals` in progress.csv.
+# python -m micromagic.training.train_alphazero --config configs/alphazero_full.yaml
+seed: 0
+total_timesteps: 1000000       # real env steps, both seats of every self-play game
+games_per_iteration: 64        # about 9k env steps per iteration
+workers: 16                    # self-play processes; set to the cores you have
+torch_threads: 4               # main process (training + evaluation)
+out_dir: runs/alphazero
+net:
+  hidden: [256, 256]
+search:                        # self-play search
+  determinizations: 2          # sampled worlds per decision
+  simulations: 32              # PUCT simulations per world
+  c_puct: 1.5
+selfplay:
+  temperature_moves: 10        # sample from the visit distribution for the first N decisions
+  dirichlet_alpha: 0.3         # root noise, mixed in at 25%
+buffer_size: 100000            # about the newest 10-12 iterations
+min_buffer: 2000
+batch_size: 256
+train_steps: 200               # minibatch updates per iteration
+optim:
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+checkpoint_every: 10
+eval_search:                   # search size for curve and final evaluation
+  determinizations: 4
+  simulations: 64
+curve:
+  every_iterations: 10
+  games: 100
+  seed: 200000
+  opponents: [random, heuristic]
+  policy_only: true            # also log the raw policy head (no search)
+eval:
+  opponents: [random, heuristic]
+  games: 500
+  seed: 100000
+  policy_only: true
