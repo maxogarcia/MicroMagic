@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+
+pytest.importorskip("ray")
+pytest.importorskip("torch")
 import ray
 
 from micromagic.agents.alphazero import PolicyValueNet

@@ -5,38 +5,61 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import ray
+try:
+    import ray
+
+    HAS_RAY = True
+except (ImportError, ModuleNotFoundError):
+    ray = None
+    HAS_RAY = False
+
 import torch as th
 
 from micromagic.agents.alphazero import PolicyValueNet
 from micromagic.training.train_alphazero import play_selfplay_game
 
 
-@ray.remote
-class RaySelfPlayWorker:
-    """Ray remote actor executing AlphaZero self-play games."""
+if HAS_RAY:
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
-        th.set_num_threads(1)
-        self.config = config or {}
+    @ray.remote
+    class RaySelfPlayWorker:
+        """Ray remote actor executing AlphaZero self-play games."""
 
-    def play_games(
-        self,
-        ckpt: dict[str, Any],
-        seeds: list[int],
-        config: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Run self-play games for the given seeds using the network checkpoint."""
-        active_config = config if config is not None else self.config
-        net = PolicyValueNet.from_checkpoint(ckpt)
-        net.eval()
-        return [play_selfplay_game(net, active_config, seed) for seed in seeds]
+        def __init__(self, config: dict[str, Any] | None = None) -> None:
+            th.set_num_threads(1)
+            self.config = config or {}
+
+        def play_games(
+            self,
+            ckpt: dict[str, Any],
+            seeds: list[int],
+            config: dict[str, Any] | None = None,
+        ) -> list[dict[str, Any]]:
+            """Run self-play games for the given seeds using the network checkpoint."""
+            active_config = config if config is not None else self.config
+            net = PolicyValueNet.from_checkpoint(ckpt)
+            net.eval()
+            return [play_selfplay_game(net, active_config, seed) for seed in seeds]
+
+else:
+
+    class _DummyRaySelfPlayWorker:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError(
+                "Ray is not installed. Install ray via `pip install 'micromagic[rl]'` to use RaySelfPlayWorker."
+            )
+
+    RaySelfPlayWorker = _DummyRaySelfPlayWorker  # type: ignore[assignment,misc]
 
 
 class RaySelfPlayPool:
     """Manages a pool of persistent RaySelfPlayWorker actors."""
 
     def __init__(self, num_workers: int, config: dict[str, Any] | None = None) -> None:
+        if not HAS_RAY:
+            raise ImportError(
+                "RaySelfPlayPool requires 'ray'. Please install ray via `pip install 'micromagic[rl]'`."
+            )
         if num_workers < 1:
             raise ValueError(f"num_workers must be >= 1, got {num_workers}")
         if not ray.is_initialized():
