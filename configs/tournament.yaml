@@ -1,0 +1,34 @@
+seed: 42
+games_per_pair: 20
+swap_seats: true
+max_steps: 1000
+confidence: 0.95
+draw_weight: 0.5
+out_dir: "results/tournament"
+agents:
+  - name: "random"
+    kind: "random"
+    seed: 42
+    enabled: true
+
+  - name: "heuristic"
+    kind: "heuristic"
+    enabled: true
+
+  - name: "tabular_mc"
+    kind: "tabular_mc"
+    checkpoint: "results/tabular/mc_final.npz"
+    enabled: true
+
+  - name: "tabular_sarsa"
+    kind: "tabular_sarsa"
+    checkpoint: "results/tabular/sarsa_final.npz"
+    enabled: true
+
+  - name: "mcts"
+    kind: "mcts"
+    simulations: 32
+    determinizations: 4
+    c_puct: 1.5
+    seed: 42
+    enabled: true
