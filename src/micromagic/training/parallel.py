@@ -16,7 +16,15 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-import ray
+
+try:
+    import ray
+
+    HAS_RAY = True
+except (ImportError, ModuleNotFoundError):
+    ray = None
+    HAS_RAY = False
+
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 
@@ -36,66 +44,82 @@ class EnvWorkerFactory:
         return Monitor(env)
 
 
-@ray.remote
-class RayEnvWorker:
-    """Remote Ray actor managing a single MicroMagicGymEnv instance."""
+if HAS_RAY:
 
-    def __init__(self, pool: OpponentPool, seed: int) -> None:
-        self.env = Monitor(MatchupWrapper(MicroMagicGymEnv(), pool, seed=seed))
-        self.seed = seed
+    @ray.remote
+    class RayEnvWorker:
+        """Remote Ray actor managing a single MicroMagicGymEnv instance."""
 
-    def reset(self) -> np.ndarray:
-        obs, _ = self.env.reset()
-        return obs
+        def __init__(self, pool: OpponentPool, seed: int) -> None:
+            self.env = Monitor(MatchupWrapper(MicroMagicGymEnv(), pool, seed=seed))
+            self.seed = seed
 
-    def step(self, action: int) -> tuple[np.ndarray, float, bool, dict[str, Any]]:
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        done = bool(terminated or truncated)
-        if done:
-            terminal_obs = obs
+        def reset(self) -> np.ndarray:
             obs, _ = self.env.reset()
-            info["terminal_observation"] = terminal_obs
-        return obs, float(reward), done, info
+            return obs
 
-    def env_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
-        target: Any = self.env
-        while hasattr(target, "env"):
-            if hasattr(target, method_name):
-                break
-            target = target.env
-        method = getattr(target, method_name)
-        return method(*args, **kwargs)
+        def step(self, action: int) -> tuple[np.ndarray, float, bool, dict[str, Any]]:
+            obs, reward, terminated, truncated, info = self.env.step(action)
+            done = bool(terminated or truncated)
+            if done:
+                terminal_obs = obs
+                obs, _ = self.env.reset()
+                info["terminal_observation"] = terminal_obs
+            return obs, float(reward), done, info
 
-    def get_attr(self, attr_name: str) -> Any:
-        target: Any = self.env
-        while hasattr(target, "env"):
-            if hasattr(target, attr_name):
-                return getattr(target, attr_name)
-            target = target.env
-        return getattr(target, attr_name)
+        def env_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
+            target: Any = self.env
+            while hasattr(target, "env"):
+                if hasattr(target, method_name):
+                    break
+                target = target.env
+            method = getattr(target, method_name)
+            return method(*args, **kwargs)
 
-    def set_attr(self, attr_name: str, value: Any) -> None:
-        target: Any = self.env
-        while hasattr(target, "env"):
-            if hasattr(target, attr_name):
-                setattr(target, attr_name, value)
-                return
-            target = target.env
-        setattr(target, attr_name, value)
+        def get_attr(self, attr_name: str) -> Any:
+            target: Any = self.env
+            while hasattr(target, "env"):
+                if hasattr(target, attr_name):
+                    return getattr(target, attr_name)
+                target = target.env
+            return getattr(target, attr_name)
 
-    def env_is_wrapped(self, wrapper_class: type[gym.Wrapper]) -> bool:
-        target: Any = self.env
-        while hasattr(target, "env"):
-            if isinstance(target, wrapper_class):
-                return True
-            target = target.env
-        return isinstance(target, wrapper_class)
+        def set_attr(self, attr_name: str, value: Any) -> None:
+            target: Any = self.env
+            while hasattr(target, "env"):
+                if hasattr(target, attr_name):
+                    setattr(target, attr_name, value)
+                    return
+                target = target.env
+            setattr(target, attr_name, value)
+
+        def env_is_wrapped(self, wrapper_class: type[gym.Wrapper]) -> bool:
+            target: Any = self.env
+            while hasattr(target, "env"):
+                if isinstance(target, wrapper_class):
+                    return True
+                target = target.env
+            return isinstance(target, wrapper_class)
+
+else:
+
+    class _DummyRayEnvWorker:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError(
+                "Ray is not installed. Install ray via `pip install 'micromagic[rl]'` to use RayEnvWorker."
+            )
+
+    RayEnvWorker = _DummyRayEnvWorker  # type: ignore[assignment,misc]
 
 
 class RayVecEnv(VecEnv):
     """Vectorized environment backed by Ray remote actors."""
 
     def __init__(self, n_envs: int, pool: OpponentPool, seed: int) -> None:
+        if not HAS_RAY:
+            raise ImportError(
+                "RayVecEnv requires 'ray'. Please install ray via `pip install 'micromagic[rl]'`."
+            )
         if not ray.is_initialized():
             ray.init(ignore_reinit_error=True, include_dashboard=False)
 
@@ -211,6 +235,10 @@ def make_parallel_vec_env(
         return venv
 
     if backend_key == "ray":
+        if not HAS_RAY:
+            raise ImportError(
+                "The 'ray' backend requires 'ray'. Please install ray via `pip install 'micromagic[rl]'`."
+            )
         return RayVecEnv(n_envs, pool, seed)
 
     raise ValueError(

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+
+pytest.importorskip("stable_baselines3")
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 
 from micromagic.env.spec import NUM_ACTIONS, OBS_DIM
@@ -69,6 +71,7 @@ def test_make_parallel_vec_env_subproc(pool: OpponentPool) -> None:
 
 
 def test_make_parallel_vec_env_ray(pool: OpponentPool) -> None:
+    pytest.importorskip("ray")
     venv = make_parallel_vec_env(2, pool, seed=20, backend="ray")
     try:
         assert isinstance(venv, VecEnv)
