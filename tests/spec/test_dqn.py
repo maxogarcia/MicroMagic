@@ -5,6 +5,7 @@ import pytest
 
 
 pytest.importorskip("stable_baselines3")
+pytest.importorskip("sb3_contrib")
 th = pytest.importorskip("torch")
 
 from micromagic.agents.dqn import MaskableDQN, MaskableDQNAgent  # noqa: E402

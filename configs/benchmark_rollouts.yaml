@@ -1,0 +1,7 @@
+workers: [1, 2, 3, 4]
+steps_per_worker: 5000
+repeats: 3
+opponent: "random"
+seed: 42
+out_dir: "results/benchmarks"
+backends: ["subproc", "ray"]

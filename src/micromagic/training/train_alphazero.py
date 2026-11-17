@@ -36,7 +36,12 @@ import numpy as np
 import pandas as pd
 import torch as th
 
-from micromagic.agents.alphazero import AlphaZeroAgent, PolicyNetAgent, PolicyValueNet, az_loss
+from micromagic.agents.alphazero import (
+    AlphaZeroAgent,
+    PolicyNetAgent,
+    PolicyValueNet,
+    az_loss,
+)
 from micromagic.env.spec import NUM_ACTIONS, OBS_DIM
 from micromagic.env.state import GameState
 from micromagic.training import common
@@ -55,12 +60,17 @@ def search_kwargs(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def play_selfplay_game(net: PolicyValueNet, config: dict[str, Any], seed: int, max_steps: int = 1000) -> dict[str, Any]:
+def play_selfplay_game(
+    net: PolicyValueNet, config: dict[str, Any], seed: int, max_steps: int = 1000
+) -> dict[str, Any]:
     """One self-play game. Returns the training samples and step counts for it."""
     sp = config.get("selfplay", {})
     temperature_moves = int(sp.get("temperature_moves", 10))
     agent = AlphaZeroAgent(
-        net, dirichlet_alpha=float(sp.get("dirichlet_alpha", 0.3)), seed=seed, name="selfplay",
+        net,
+        dirichlet_alpha=float(sp.get("dirichlet_alpha", 0.3)),
+        seed=seed,
+        name="selfplay",
         **search_kwargs(config),
     )
     rng = np.random.default_rng(seed)
@@ -113,19 +123,32 @@ def _init_worker() -> None:
     th.set_num_threads(1)
 
 
-def _play_games(ckpt: dict[str, Any], config: dict[str, Any], seeds: list[int]) -> list[dict[str, Any]]:
+def _play_games(
+    ckpt: dict[str, Any], config: dict[str, Any], seeds: list[int]
+) -> list[dict[str, Any]]:
     net = PolicyValueNet.from_checkpoint(ckpt)
     return [play_selfplay_game(net, config, seed) for seed in seeds]
 
 
 def selfplay(
-    net: PolicyValueNet, config: dict[str, Any], seeds: list[int], executor: ProcessPoolExecutor | None
+    net: PolicyValueNet,
+    config: dict[str, Any],
+    seeds: list[int],
+    executor: ProcessPoolExecutor | None = None,
+    ray_pool: Any | None = None,
 ) -> list[dict[str, Any]]:
+    if ray_pool is not None:
+        from micromagic.training.parallel_alphazero import ray_selfplay
+
+        return ray_selfplay(net, config, seeds, ray_pool)
     if executor is None:
         return [play_selfplay_game(net, config, s) for s in seeds]
     workers = executor._max_workers  # noqa: SLF001 - the pool size we created
     chunks = [seeds[i::workers] for i in range(workers) if seeds[i::workers]]
-    ckpt = {"hidden": net.hidden, "state_dict": {k: v.cpu() for k, v in net.state_dict().items()}}
+    ckpt = {
+        "hidden": net.hidden,
+        "state_dict": {k: v.cpu() for k, v in net.state_dict().items()},
+    }
     futures = [executor.submit(_play_games, ckpt, config, chunk) for chunk in chunks]
     return [game for f in futures for game in f.result()]
 
@@ -147,12 +170,20 @@ class ReplayBuffer:
         return len(self.zs)
 
     def add(self, games: list[dict[str, Any]]) -> None:
-        self.obs = np.concatenate([self.obs] + [g["obs"] for g in games])[-self.capacity :]
-        self.masks = np.concatenate([self.masks] + [g["masks"] for g in games])[-self.capacity :]
-        self.pis = np.concatenate([self.pis] + [g["pis"] for g in games])[-self.capacity :]
+        self.obs = np.concatenate([self.obs] + [g["obs"] for g in games])[
+            -self.capacity :
+        ]
+        self.masks = np.concatenate([self.masks] + [g["masks"] for g in games])[
+            -self.capacity :
+        ]
+        self.pis = np.concatenate([self.pis] + [g["pis"] for g in games])[
+            -self.capacity :
+        ]
         self.zs = np.concatenate([self.zs] + [g["zs"] for g in games])[-self.capacity :]
 
-    def sample(self, batch_size: int, rng: np.random.Generator) -> tuple[th.Tensor, ...]:
+    def sample(
+        self, batch_size: int, rng: np.random.Generator
+    ) -> tuple[th.Tensor, ...]:
         idx = rng.integers(len(self), size=batch_size)
         return (
             th.as_tensor(self.obs[idx]),
@@ -163,7 +194,11 @@ class ReplayBuffer:
 
 
 def train_network(
-    net: PolicyValueNet, optimizer: th.optim.Optimizer, buffer: ReplayBuffer, steps: int, batch_size: int,
+    net: PolicyValueNet,
+    optimizer: th.optim.Optimizer,
+    buffer: ReplayBuffer,
+    steps: int,
+    batch_size: int,
     rng: np.random.Generator,
 ) -> dict[str, float]:
     net.train()
@@ -183,14 +218,22 @@ def train_network(
 # Evaluation
 
 
-def make_eval_agent(net: PolicyValueNet, config: dict[str, Any], name: str = "alphazero") -> AlphaZeroAgent:
+def make_eval_agent(
+    net: PolicyValueNet, config: dict[str, Any], name: str = "alphazero"
+) -> AlphaZeroAgent:
     """Search agent without exploration noise; `eval_search` overrides the self-play search sizes."""
-    kwargs = search_kwargs(config) | {k: v for k, v in config.get("eval_search", {}).items()}
+    kwargs = search_kwargs(config) | {
+        k: v for k, v in config.get("eval_search", {}).items()
+    }
     return AlphaZeroAgent(net, seed=int(config["seed"]), name=name, **kwargs)
 
 
 def record_curve(
-    net: PolicyValueNet, config: dict[str, Any], iteration: int, env_steps: int, rows: list[dict[str, Any]]
+    net: PolicyValueNet,
+    config: dict[str, Any],
+    iteration: int,
+    env_steps: int,
+    rows: list[dict[str, Any]],
 ) -> None:
     curve = config["curve"]
     seed, games = int(curve.get("seed", 200_000)), int(curve["games"])
@@ -199,10 +242,17 @@ def record_curve(
         agents.append(PolicyNetAgent(net, name="az_policy"))
     for agent in agents:
         for kind in curve.get("opponents", ["random", "heuristic"]):
-            result = common.play_matchups(agent, common.make_opponent(kind, seed), games, seed)
+            result = common.play_matchups(
+                agent, common.make_opponent(kind, seed), games, seed
+            )
             overall = common.by_deck_and_seat(result, agent.name, seed).iloc[-1]
             rows.append(
-                {"timesteps": env_steps, "iteration": iteration, "agent": agent.name, "opponent": kind}
+                {
+                    "timesteps": env_steps,
+                    "iteration": iteration,
+                    "agent": agent.name,
+                    "opponent": kind,
+                }
                 | overall[["win_rate", "ci_lower", "ci_upper"]].to_dict()
             )
 
@@ -224,7 +274,9 @@ def train(config: dict[str, Any]) -> PolicyValueNet:
     net.eval()
     opt_cfg = config.get("optim", {})
     optimizer = th.optim.Adam(
-        net.parameters(), lr=float(opt_cfg.get("lr", 1e-3)), weight_decay=float(opt_cfg.get("weight_decay", 1e-4))
+        net.parameters(),
+        lr=float(opt_cfg.get("lr", 1e-3)),
+        weight_decay=float(opt_cfg.get("weight_decay", 1e-4)),
     )
     buffer = ReplayBuffer(int(config.get("buffer_size", 100_000)))
 
@@ -236,10 +288,21 @@ def train(config: dict[str, Any]) -> PolicyValueNet:
     checkpoint_every = int(config.get("checkpoint_every", 0))
     curve_every = int(config["curve"]["every_iterations"]) if config.get("curve") else 0
     workers = int(config.get("workers", 1))
+    backend = str(
+        config.get("backend", config.get("selfplay", {}).get("backend", "process"))
+    ).lower()
 
     executor = None
+    ray_pool = None
     if workers > 1:
-        executor = ProcessPoolExecutor(workers, mp_context=mp.get_context("spawn"), initializer=_init_worker)
+        if backend == "ray":
+            from micromagic.training.parallel_alphazero import RaySelfPlayPool
+
+            ray_pool = RaySelfPlayPool(workers, config)
+        else:
+            executor = ProcessPoolExecutor(
+                workers, mp_context=mp.get_context("spawn"), initializer=_init_worker
+            )
 
     progress: list[dict[str, Any]] = []
     curve_rows: list[dict[str, Any]] = []
@@ -248,8 +311,11 @@ def train(config: dict[str, Any]) -> PolicyValueNet:
         while env_steps < total_timesteps:
             iteration += 1
             start = time.perf_counter()
-            seeds = [seed * 10_000_000 + (iteration - 1) * games_per_iteration + i for i in range(games_per_iteration)]
-            games = selfplay(net, config, seeds, executor)
+            seeds = [
+                seed * 10_000_000 + (iteration - 1) * games_per_iteration + i
+                for i in range(games_per_iteration)
+            ]
+            games = selfplay(net, config, seeds, executor, ray_pool=ray_pool)
             selfplay_seconds = time.perf_counter() - start
             buffer.add(games)
             steps = sum(g["env_steps"] for g in games)
@@ -259,7 +325,9 @@ def train(config: dict[str, Any]) -> PolicyValueNet:
             start = time.perf_counter()
             losses = {"loss": np.nan, "policy_loss": np.nan, "value_loss": np.nan}
             if len(buffer) >= min_buffer:
-                losses = train_network(net, optimizer, buffer, train_steps, batch_size, rng)
+                losses = train_network(
+                    net, optimizer, buffer, train_steps, batch_size, rng
+                )
             train_seconds = time.perf_counter() - start
 
             winners = [g["winner"] for g in games]
@@ -295,6 +363,8 @@ def train(config: dict[str, Any]) -> PolicyValueNet:
     finally:
         if executor is not None:
             executor.shutdown()
+        if ray_pool is not None:
+            ray_pool.shutdown()
 
     if curve_every and (not curve_rows or curve_rows[-1]["iteration"] != iteration):
         record_curve(net, config, iteration, env_steps, curve_rows)
@@ -311,7 +381,9 @@ def main(argv: list[str] | None = None) -> None:
     if config["eval"].get("policy_only", False):
         policy_out = out / "policy_only"
         policy_out.mkdir(exist_ok=True)
-        table = common.evaluate(PolicyNetAgent(net, name="az_policy"), config, policy_out)
+        table = common.evaluate(
+            PolicyNetAgent(net, name="az_policy"), config, policy_out
+        )
         print(table.to_string(index=False))
 
 

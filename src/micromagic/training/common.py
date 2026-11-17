@@ -18,10 +18,8 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 import yaml
-from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import VecEnv
 
 from micromagic.agents.base import Agent
 from micromagic.agents.heuristic import HeuristicAgent
@@ -49,14 +47,18 @@ class PolicyAgent(Agent):
     """Acts with an SB3 policy whose predict() takes action_masks (MaskablePPO's
     policy and MaskableDQNPolicy both do). Used for frozen self-play snapshots."""
 
-    def __init__(self, policy: Any, deterministic: bool = False, name: str = "snapshot") -> None:
+    def __init__(
+        self, policy: Any, deterministic: bool = False, name: str = "snapshot"
+    ) -> None:
         super().__init__(name)
         self.policy = policy
         self.deterministic = deterministic
 
     def act(self, obs: np.ndarray, mask: np.ndarray) -> int:
         action, _ = self.policy.predict(
-            obs, action_masks=np.asarray(mask, dtype=bool), deterministic=self.deterministic
+            obs,
+            action_masks=np.asarray(mask, dtype=bool),
+            deterministic=self.deterministic,
         )
         return int(action)
 
@@ -88,7 +90,11 @@ class OpponentPool:
         del self.snapshots[: -self.max_snapshots]
 
     def sample(self) -> Agent:
-        kinds = [k for k, w in self.weights.items() if w > 0 and (k != "self" or self.snapshots)]
+        kinds = [
+            k
+            for k, w in self.weights.items()
+            if w > 0 and (k != "self" or self.snapshots)
+        ]
         if not kinds:
             raise ValueError("OpponentPool has no opponent with positive weight")
         p = np.array([self.weights[k] for k in kinds], dtype=float)
@@ -105,6 +111,7 @@ class MatchupWrapper(gym.Wrapper):
     def __init__(self, env: MicroMagicGymEnv, pool: OpponentPool, seed: int) -> None:
         super().__init__(env)
         self.pool = pool
+        self.seed = seed
         self.matchup_rng = np.random.default_rng(seed)
 
     def reset(self, **kwargs) -> tuple[np.ndarray, dict]:
@@ -115,19 +122,16 @@ class MatchupWrapper(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
-def make_vec_env(n_envs: int, pool: OpponentPool, seed: int) -> DummyVecEnv:
+def make_vec_env(
+    n_envs: int,
+    pool: OpponentPool,
+    seed: int,
+    backend: str = "dummy",
+) -> VecEnv:
     """All envs share one pool, so a snapshot added by the callback reaches every env."""
+    from micromagic.training.parallel import make_parallel_vec_env
 
-    def factory(index: int):
-        def _init() -> Monitor:
-            env = MatchupWrapper(MicroMagicGymEnv(), pool, seed=seed + 1000 + index)
-            return Monitor(env)
-
-        return _init
-
-    venv = DummyVecEnv([factory(i) for i in range(n_envs)])
-    venv.seed(seed)
-    return venv
+    return make_parallel_vec_env(n_envs, pool, seed=seed, backend=backend)
 
 
 class SnapshotCallback(BaseCallback):
@@ -144,7 +148,9 @@ class SnapshotCallback(BaseCallback):
             self._next += self.every
             policy = copy.deepcopy(self.model.policy)
             policy.set_training_mode(False)
-            self.pool.add_snapshot(PolicyAgent(policy, name=f"snapshot_{self.num_timesteps}"))
+            self.pool.add_snapshot(
+                PolicyAgent(policy, name=f"snapshot_{self.num_timesteps}")
+            )
         return True
 
 
@@ -162,12 +168,16 @@ def matchup_env_factory(base_seed: int):
     return factory
 
 
-def play_matchups(agent: Agent, opponent: Agent, games: int, base_seed: int) -> TournamentResult:
+def play_matchups(
+    agent: Agent, opponent: Agent, games: int, base_seed: int
+) -> TournamentResult:
     runner = TournamentRunner(matchup_env_factory(base_seed))
     return runner.run_match(agent, opponent, games, base_seed=base_seed)
 
 
-def by_deck_and_seat(result: TournamentResult, agent_name: str, base_seed: int) -> pd.DataFrame:
+def by_deck_and_seat(
+    result: TournamentResult, agent_name: str, base_seed: int
+) -> pd.DataFrame:
     """Win rate of `agent_name` per (deck, seat), plus an "all" row, with 95% Wilson CIs.
     Draws count as half a win, as in compute_agent_win_rates."""
     df = result.to_dataframe()
@@ -224,7 +234,15 @@ class LearningCurveCallback(BaseCallback):
     """Every `every` env steps, plays `games` greedy games against each opponent
     and appends the win rates to learning_curve.csv."""
 
-    def __init__(self, make_agent, opponents: list[str], every: int, games: int, seed: int, path: Path) -> None:
+    def __init__(
+        self,
+        make_agent,
+        opponents: list[str],
+        every: int,
+        games: int,
+        seed: int,
+        path: Path,
+    ) -> None:
         super().__init__()
         self.make_agent = make_agent
         self.opponents = opponents
@@ -248,7 +266,9 @@ class LearningCurveCallback(BaseCallback):
     def record(self) -> None:
         agent = self.make_agent(self.model)
         for kind in self.opponents:
-            result = play_matchups(agent, make_opponent(kind, self.seed), self.games, self.seed)
+            result = play_matchups(
+                agent, make_opponent(kind, self.seed), self.games, self.seed
+            )
             overall = by_deck_and_seat(result, agent.name, self.seed).iloc[-1]
             self.rows.append(
                 {"timesteps": self.num_timesteps, "opponent": kind}
@@ -271,7 +291,9 @@ def opponent_weights(config: dict[str, Any]) -> dict[str, float]:
     return {config.get("opponent", "random"): 1.0}
 
 
-def callbacks(config: dict[str, Any], pool: OpponentPool, make_agent, out: Path) -> list[BaseCallback]:
+def callbacks(
+    config: dict[str, Any], pool: OpponentPool, make_agent, out: Path
+) -> list[BaseCallback]:
     found: list[BaseCallback] = []
     if pool.weights.get("self", 0) > 0:
         found.append(SnapshotCallback(pool, int(config.get("snapshot_every", 50_000))))
@@ -291,9 +313,13 @@ def callbacks(config: dict[str, Any], pool: OpponentPool, make_agent, out: Path)
 
 
 def load_config(argv: list[str] | None, description: str) -> dict[str, Any]:
-    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=description, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--total-timesteps", type=int, help="override config total_timesteps")
+    parser.add_argument(
+        "--total-timesteps", type=int, help="override config total_timesteps"
+    )
     parser.add_argument("--seed", type=int, help="override config seed")
     parser.add_argument("--run-name", help="override config run_name")
     args = parser.parse_args(argv)

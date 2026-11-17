@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-11-17T06:44:13.066227+00:00",
+  "config": {
+    "workers": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "games_per_worker": 2,
+    "seed": 42,
+    "out_dir": "results/benchmarks",
+    "search": {
+      "determinizations": 2,
+      "simulations": 16,
+      "c_puct": 1.5
+    },
+    "selfplay": {
+      "temperature_moves": 6,
+      "dirichlet_alpha": 0.3
+    },
+    "net": {
+      "hidden": [
+        128,
+        128
+      ]
+    }
+  },
+  "system_specs": {
+    "platform": "Windows-11-10.0.26300-SP0",
+    "system": "Windows",
+    "release": "11",
+    "python_version": "3.13.6",
+    "cpu_model": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "physical_cores": 16,
+    "logical_cores": 32,
+    "ram_gb": 31.3
+  },
+  "results": [
+    {
+      "workers": 1,
+      "games": 2,
+      "elapsed_sec": 5.3793,
+      "games_per_sec": 0.37,
+      "env_steps_per_sec": 57.4,
+      "search_evals_per_sec": 1490.3,
+      "speedup": 1.0,
+      "efficiency": 1.0
+    },
+    {
+      "workers": 2,
+      "games": 4,
+      "elapsed_sec": 5.5766,
+      "games_per_sec": 0.72,
+      "env_steps_per_sec": 104.5,
+      "search_evals_per_sec": 2487.7,
+      "speedup": 1.929,
+      "efficiency": 0.965
+    },
+    {
+      "workers": 4,
+      "games": 8,
+      "elapsed_sec": 5.734,
+      "games_per_sec": 1.4,
+      "env_steps_per_sec": 187.1,
+      "search_evals_per_sec": 4536.5,
+      "speedup": 3.753,
+      "efficiency": 0.938
+    },
+    {
+      "workers": 8,
+      "games": 16,
+      "elapsed_sec": 6.8668,
+      "games_per_sec": 2.33,
+      "env_steps_per_sec": 324.3,
+      "search_evals_per_sec": 7611.7,
+      "speedup": 6.267,
+      "efficiency": 0.783
+    },
+    {
+      "workers": 16,
+      "games": 32,
+      "elapsed_sec": 8.9961,
+      "games_per_sec": 3.56,
+      "env_steps_per_sec": 533.5,
+      "search_evals_per_sec": 13017.4,
+      "speedup": 9.567,
+      "efficiency": 0.598
+    }
+  ]
+}
