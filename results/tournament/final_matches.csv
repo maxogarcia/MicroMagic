@@ -1,0 +1,3 @@
+game_id,seed,player_0_name,player_1_name,winner_seat,winner_name,step_count,is_draw
+0,42,random_a,random_b,0,random_a,115,False
+1,43,random_b,random_a,0,random_b,238,False

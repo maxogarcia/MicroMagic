@@ -15,6 +15,7 @@ import pandas as pd
 
 from micromagic.agents.base import Agent
 from micromagic.agents.tabular import MonteCarloAgent, SarsaAgent, TabularAgent
+from micromagic.env.rewards import compute_state_potential
 from micromagic.env.spec import DECK_NAMES
 from micromagic.env.state import GameState
 from micromagic.evaluation.wilson import compute_agent_win_rates, wilson_score_interval
@@ -141,6 +142,7 @@ def train_tabular(
     n_steps: int = 4,
     eval_every: int = 0,
     eval_games: int = 100,
+    reward_shaping: bool = False,
     out_dir: str | Path | None = None,
 ) -> TabularAgent:
     """Train a tabular agent (MC or 4-step SARSA) over self-play or fixed opponent.
@@ -213,6 +215,9 @@ def train_tabular(
         state = GameState(seed=game_seed, decks=decks)
         agent.reset()
         fixed_opp.reset()
+        prev_potential = (
+            compute_state_potential(state, learner_seat) if reward_shaping else 0.0
+        )
 
         if isinstance(agent, MonteCarloAgent):
             transitions: list[tuple[int, int, float]] = []
@@ -223,7 +228,13 @@ def train_tabular(
 
                 if curr == learner_seat:
                     s, macro = agent.select_macro(obs, mask)
-                    transitions.append((s, macro, 0.0))
+                    if reward_shaping:
+                        curr_potential = compute_state_potential(state, learner_seat)
+                        step_r = curr_potential - prev_potential
+                        prev_potential = curr_potential
+                    else:
+                        step_r = 0.0
+                    transitions.append((s, macro, step_r))
                     action = execute_macro(macro, obs, mask)
                 else:
                     action = fixed_opp.act(obs, mask)
@@ -251,11 +262,18 @@ def train_tabular(
 
                 if curr == learner_seat:
                     s, macro = agent.select_macro(obs, mask)
+                    if reward_shaping:
+                        curr_potential = compute_state_potential(state, learner_seat)
+                        step_r = curr_potential - prev_potential
+                        prev_potential = curr_potential
+                    else:
+                        step_r = 0.0
+
                     if prev_s is not None and prev_macro is not None:
                         agent.step_update(
                             s=prev_s,
                             a=prev_macro,
-                            r=0.0,
+                            r=step_r,
                             next_s=s,
                             next_a=macro,
                             done=False,

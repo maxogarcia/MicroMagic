@@ -18,6 +18,7 @@ from micromagic.agents.random_agent import RandomAgent
 from micromagic.agents.tabular import MonteCarloAgent, SarsaAgent
 from micromagic.env.spec import DECK_NAMES
 from micromagic.env.state import GameState
+from micromagic.evaluation.elo import fit_elo_with_bootstrap
 from micromagic.evaluation.matrix import compute_head_to_head, compute_pairwise_table
 from micromagic.evaluation.wilson import compute_agent_win_rates
 from micromagic.search.mcts import MCTSAgent
@@ -227,18 +228,37 @@ def run_tournament(
         draw_weight=draw_weight,
     )
 
+    num_bootstraps = int(config.get("num_bootstraps", 1000))
+    elo_df = fit_elo_with_bootstrap(
+        combined_result,
+        num_bootstraps=num_bootstraps,
+        confidence=confidence,
+        seed=base_seed,
+        draw_weight=draw_weight,
+    )
+
     resolved_out = Path(out_dir or config.get("out_dir", "results/tournament"))
     if resolved_out:
         resolved_out.mkdir(parents=True, exist_ok=True)
         matches_df.to_csv(resolved_out / "matches.csv", index=False)
+        matches_df.to_csv(resolved_out / "final_matches.csv", index=False)
+
         win_rates_df.to_csv(resolved_out / "win_rates.csv", index=False)
+        win_rates_df.to_csv(resolved_out / "final_win_rates.csv", index=False)
+
         head_to_head_df.to_csv(resolved_out / "head_to_head.csv")
+        head_to_head_df.to_csv(resolved_out / "final_pairwise_matrix.csv")
+
         pairwise_df.to_csv(resolved_out / "pairwise.csv", index=False)
+
+        elo_df.to_csv(resolved_out / "elo_ratings.csv", index=False)
+        elo_df.to_csv(resolved_out / "final_elo_ratings.csv", index=False)
 
     return {
         "matches": matches_df,
         "win_rates": win_rates_df,
         "head_to_head": head_to_head_df,
         "pairwise": pairwise_df,
+        "elo_ratings": elo_df,
         "tournament_result": combined_result,
     }

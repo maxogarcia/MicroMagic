@@ -57,6 +57,11 @@ def main(argv: list[str] | None = None) -> None:
     results = run_tournament(config, games=args.games, out_dir=out_dir)
 
     print("\n" + "=" * 70)
+    print("Bradley-Terry Elo Ratings (1,000 Bootstrap 95% Confidence Intervals):")
+    print("=" * 70)
+    print(results["elo_ratings"].to_string(index=False))
+
+    print("\n" + "=" * 70)
     print("Tournament Standings (95% Wilson Score Intervals):")
     print("=" * 70)
     print(results["win_rates"].to_string(index=False))
@@ -68,10 +73,11 @@ def main(argv: list[str] | None = None) -> None:
 
     print("\n" + "=" * 70)
     print(f"Saved artifacts to {out_dir}/:")
-    print("  - matches.csv")
-    print("  - win_rates.csv")
-    print("  - head_to_head.csv")
+    print("  - matches.csv / final_matches.csv")
+    print("  - win_rates.csv / final_win_rates.csv")
+    print("  - head_to_head.csv / final_pairwise_matrix.csv")
     print("  - pairwise.csv")
+    print("  - elo_ratings.csv / final_elo_ratings.csv")
     print("=" * 70)
 
 
