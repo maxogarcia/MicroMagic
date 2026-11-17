@@ -8,6 +8,7 @@ Implements vectorized environment backends:
 
 from __future__ import annotations
 
+import os
 import platform
 import sys
 import time
@@ -15,7 +16,6 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-import psutil
 import ray
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
@@ -219,17 +219,29 @@ def make_parallel_vec_env(
 
 
 def get_system_specs() -> dict[str, Any]:
-    """Collect host system hardware and operating system metadata."""
+    """Collect host system hardware and operating system metadata without requiring psutil."""
     cpu_model = platform.processor() or "Unknown"
+    logical_cores = os.cpu_count() or 1
+    physical_cores = logical_cores
+    ram_gb = None
+    try:
+        import psutil
+
+        physical_cores = psutil.cpu_count(logical=False) or logical_cores
+        logical_cores = psutil.cpu_count(logical=True) or logical_cores
+        ram_gb = round(psutil.virtual_memory().total / (1024**3), 2)
+    except ImportError:
+        pass
+
     return {
         "platform": platform.platform(),
         "system": platform.system(),
         "release": platform.release(),
         "python_version": sys.version.split()[0],
         "cpu_model": cpu_model,
-        "physical_cores": psutil.cpu_count(logical=False) or 1,
-        "logical_cores": psutil.cpu_count(logical=True) or 1,
-        "ram_gb": round(psutil.virtual_memory().total / (1024**3), 2),
+        "physical_cores": physical_cores,
+        "logical_cores": logical_cores,
+        "ram_gb": ram_gb,
     }
 
 
