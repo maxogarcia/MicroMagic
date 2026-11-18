@@ -1,0 +1,53 @@
+{
+  "timestamp_utc": "2026-11-08T03:36:47+00:00",
+  "config": {
+    "seed": 0,
+    "games_per_repeat": 300,
+    "repeats": 5,
+    "pin_to_one_core": true,
+    "target_steps_per_sec": 2000,
+    "state_samples": 200,
+    "calls_per_state": 50,
+    "out_dir": "results/benchmarks"
+  },
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "logical_cpus": 2,
+    "os": "Linux 6.8.0-138-generic",
+    "python": "3.10.12",
+    "numpy": "2.2.6",
+    "git_commit": "35f5209",
+    "pinned_cpu": 0
+  },
+  "loops": {
+    "engine": {
+      "steps_per_sec_median": 4296.7,
+      "steps_per_sec_min": 2753.9,
+      "steps_per_sec_max": 6496.1,
+      "steps_per_repeat": [
+        41807,
+        41807,
+        41807,
+        41807,
+        41807
+      ]
+    },
+    "agent_loop": {
+      "steps_per_sec_median": 5320.1,
+      "steps_per_sec_min": 3615.1,
+      "steps_per_sec_max": 5770.0,
+      "steps_per_repeat": [
+        41807,
+        41807,
+        41807,
+        41807,
+        41807
+      ]
+    }
+  },
+  "clone_us": 179.63,
+  "determinize_us": 664.03,
+  "headline_steps_per_sec": 5320.1,
+  "target_steps_per_sec": 2000.0,
+  "meets_target": true
+}

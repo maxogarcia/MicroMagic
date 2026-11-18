@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-11-14T03:46:21.066274+00:00",
+  "config": {
+    "workers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "steps_per_worker": 5000,
+    "repeats": 3,
+    "opponent": "random",
+    "seed": 42,
+    "out_dir": "results/benchmarks",
+    "backends": [
+      "subproc",
+      "ray"
+    ]
+  },
+  "system_specs": {
+    "platform": "Windows-11-10.0.26300-SP0",
+    "system": "Windows",
+    "release": "11",
+    "python_version": "3.13.6",
+    "cpu_model": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "physical_cores": 16,
+    "logical_cores": 32,
+    "ram_gb": 31.3
+  },
+  "results": [
+    {
+      "backend": "subproc",
+      "workers": 1,
+      "total_steps": 5000,
+      "elapsed_sec": 2.2901,
+      "steps_per_sec": 2183.48,
+      "speedup": 1.0,
+      "efficiency": 1.0
+    },
+    {
+      "backend": "subproc",
+      "workers": 2,
+      "total_steps": 10000,
+      "elapsed_sec": 3.1294,
+      "steps_per_sec": 3195.66,
+      "speedup": 1.464,
+      "efficiency": 0.732
+    },
+    {
+      "backend": "subproc",
+      "workers": 3,
+      "total_steps": 15000,
+      "elapsed_sec": 3.751,
+      "steps_per_sec": 4011.9,
+      "speedup": 1.837,
+      "efficiency": 0.612
+    },
+    {
+      "backend": "subproc",
+      "workers": 4,
+      "total_steps": 20000,
+      "elapsed_sec": 4.0903,
+      "steps_per_sec": 4893.85,
+      "speedup": 2.241,
+      "efficiency": 0.56
+    },
+    {
+      "backend": "ray",
+      "workers": 1,
+      "total_steps": 5000,
+      "elapsed_sec": 8.4088,
+      "steps_per_sec": 595.95,
+      "speedup": 1.0,
+      "efficiency": 1.0
+    },
+    {
+      "backend": "ray",
+      "workers": 2,
+      "total_steps": 10000,
+      "elapsed_sec": 11.3206,
+      "steps_per_sec": 884.42,
+      "speedup": 1.484,
+      "efficiency": 0.742
+    },
+    {
+      "backend": "ray",
+      "workers": 3,
+      "total_steps": 15000,
+      "elapsed_sec": 12.7858,
+      "steps_per_sec": 1180.46,
+      "speedup": 1.981,
+      "efficiency": 0.66
+    },
+    {
+      "backend": "ray",
+      "workers": 4,
+      "total_steps": 20000,
+      "elapsed_sec": 13.0994,
+      "steps_per_sec": 1527.54,
+      "speedup": 2.563,
+      "efficiency": 0.641
+    }
+  ]
+}

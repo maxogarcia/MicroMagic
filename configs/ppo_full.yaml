@@ -1,0 +1,31 @@
+# MaskablePPO on the full 25-card game (M2). The learner plays all four
+# (deck, seat) matchups against an opponent pool with self-play snapshots.
+# python -m micromagic.training.train_ppo --config configs/ppo_full.yaml
+seed: 0
+total_timesteps: 1000000
+n_envs: 8
+opponents:              # sampling weights per game (check-in 1, §1.6)
+  random: 0.1
+  heuristic: 0.2
+  self: 0.7             # frozen snapshots; shared out among the others until the first one
+snapshot_every: 50000
+out_dir: runs/ppo
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 256          # per env, so 2048 transitions per update
+  batch_size: 256
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  net_arch: [256, 256]
+curve:                  # greedy games vs. each opponent every `every` steps
+  every: 50000
+  games: 100
+  seed: 200000
+  opponents: [random, heuristic]
+eval:
+  opponents: [random, heuristic]
+  games: 500
+  seed: 100000          # fixed eval game seeds: games use 100000, 100001, ...

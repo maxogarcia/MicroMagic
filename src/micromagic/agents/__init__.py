@@ -6,5 +6,12 @@ baselines do not require torch / sb3-contrib.
 
 from micromagic.agents.base import Agent
 from micromagic.agents.random_agent import RandomAgent
+from micromagic.agents.tabular import MonteCarloAgent, SarsaAgent, TabularAgent
 
-__all__ = ["Agent", "RandomAgent"]
+__all__ = [
+    "Agent",
+    "MonteCarloAgent",
+    "RandomAgent",
+    "SarsaAgent",
+    "TabularAgent",
+]

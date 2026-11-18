@@ -1,0 +1,76 @@
+{
+  "timestamp_utc": "2026-11-08T03:37:35+00:00",
+  "config": {
+    "seed": 0,
+    "base_seed": 200000,
+    "games": 100,
+    "mcts": {
+      "determinizations": 4,
+      "simulations": 64,
+      "c_puct": 1.5,
+      "rollout_depth": 10
+    },
+    "out_dir": "results/mcts"
+  },
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "logical_cpus": 2,
+    "os": "Linux 6.18.44-fc-v310",
+    "python": "3.13.16",
+    "numpy": "2.5.3",
+    "git_commit": null
+  },
+  "overall": {
+    "wins": 81,
+    "games": 100,
+    "win_rate": 0.81,
+    "wilson_95": [
+      0.7222,
+      0.8749
+    ],
+    "draws": 0
+  },
+  "by_mcts_deck": {
+    "aggro": {
+      "wins": 33,
+      "games": 50,
+      "win_rate": 0.66,
+      "wilson_95": [
+        0.5215,
+        0.7756
+      ]
+    },
+    "midrange": {
+      "wins": 48,
+      "games": 50,
+      "win_rate": 0.96,
+      "wilson_95": [
+        0.8654,
+        0.989
+      ]
+    }
+  },
+  "by_mcts_seat": {
+    "seat_0": {
+      "wins": 44,
+      "games": 50,
+      "win_rate": 0.88,
+      "wilson_95": [
+        0.762,
+        0.9438
+      ]
+    },
+    "seat_1": {
+      "wins": 37,
+      "games": 50,
+      "win_rate": 0.74,
+      "wilson_95": [
+        0.6045,
+        0.8413
+      ]
+    }
+  },
+  "seconds_total": 370.6,
+  "seconds_per_game": 3.71,
+  "matches_csv": "results/mcts/mcts_vs_random_2026-11-08.csv"
+}

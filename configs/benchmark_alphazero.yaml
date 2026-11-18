@@ -1,0 +1,13 @@
+workers: [1, 2, 4, 8, 16]
+games_per_worker: 2
+seed: 42
+out_dir: "results/benchmarks"
+search:
+  determinizations: 2
+  simulations: 16
+  c_puct: 1.5
+selfplay:
+  temperature_moves: 6
+  dirichlet_alpha: 0.3
+net:
+  hidden: [128, 128]

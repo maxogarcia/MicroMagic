@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MicroMagic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/*__VIEWER_CSS__*/
+
+/* Play-specific: what you can click glows brass; what you can target glows ember. */
+.card.can { cursor: pointer; box-shadow: 0 0 0 3px var(--brass), 0 0 16px rgba(217, 164, 65, .55); }
+.card.can:hover { transform: translateY(-6px); }
+.card.tapped.can:hover { transform: rotate(90deg) translateX(-6px); }
+.card.target { cursor: crosshair; box-shadow: 0 0 0 3px var(--ember), 0 0 18px rgba(200, 85, 61, .7); }
+.who.target { cursor: crosshair; outline: 3px solid var(--ember); outline-offset: 6px; border-radius: 8px; }
+.hand.mine .card { --s: .74; }
+/* Fit the whole table, your hand included, on a laptop screen. */
+.table { grid-template-rows: auto auto minmax(calc(var(--card-h) + 8px), 1fr) auto minmax(calc(var(--card-h) + 8px), 1fr) auto auto; }
+@media (max-height: 1000px) { :root { --card-w: 92px; --card-h: 129px; } .hand.mine .card { --s: .66; } }
+@media (max-height: 820px)  { :root { --card-w: 80px; --card-h: 112px; } .hand.mine .card { --s: .62; } .life { font-size: 36px; } }
+.hand.mine .card .rules { display: none; }
+.hand.mine .card .kind { display: block; }
+
+.lane .action { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.prompt { color: var(--chalk); font-size: 14px; text-align: right; max-width: 34ch; }
+.prompt.waiting { color: var(--chalk-soft); }
+.pass-btn {
+  background: var(--brass); color: var(--mat-deep); border: 0; border-radius: 8px;
+  padding: 7px 16px; font-weight: 700; cursor: pointer; font-size: 15px;
+}
+.pass-btn:disabled { opacity: .35; cursor: default; }
+.thinking::after { content: ""; display: inline-block; width: 1em; text-align: left; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+.error { color: #ff9b85; font-size: 13px; }
+
+/* Lobby and dialogs */
+.overlay {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
+  background: rgba(10, 20, 22, .72);
+}
+.panel {
+  background: var(--mat-deep); border: 1px solid var(--mat-line); border-radius: 14px;
+  padding: 24px 28px; width: min(720px, 100%); max-height: calc(100vh - 32px); overflow: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.panel h1 { margin: 0 0 4px; font: 800 30px/1.1 "Alegreya SC", Georgia, serif; }
+.panel .sub { color: var(--chalk-soft); margin: 0 0 18px; }
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.mode {
+  border: 1px solid var(--mat-line); border-radius: 10px; padding: 12px; cursor: pointer; background: transparent; text-align: left;
+}
+.mode b { display: block; font: 700 17px "Alegreya SC", Georgia, serif; margin-bottom: 4px; }
+.mode span { color: var(--chalk-soft); font-size: 13px; }
+.mode[aria-pressed="true"] { border-color: var(--brass); background: rgba(217, 164, 65, .12); }
+.form { display: grid; grid-template-columns: max-content 1fr; gap: 10px 14px; align-items: center; }
+.form label { color: var(--chalk-soft); }
+.form select, .form input { background: var(--mat); border: 1px solid var(--mat-line); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+.form .hint { grid-column: 2; color: var(--chalk-soft); font-size: 12.5px; margin-top: -6px; }
+.row-end { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.btn { background: transparent; border: 1px solid var(--mat-line); border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+.btn.primary { background: var(--brass); color: var(--mat-deep); border-color: var(--brass); font-weight: 700; }
+.invite { word-break: break-all; background: var(--mat); border: 1px solid var(--mat-line); border-radius: 8px; padding: 10px; font-size: 13px; margin: 10px 0; }
+footer.controls .spacer { flex: 1; }
+@media (max-width: 700px) { .modes { grid-template-columns: 1fr; } .form { grid-template-columns: 1fr; } .form .hint { grid-column: 1; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(() => {
+  const root = document.getElementById("root");
+  const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html !== undefined) n.innerHTML = html; return n; };
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  const api = async (path, body) => {
+    const res = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  };
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem("micromagic-" + k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem("micromagic-" + k, JSON.stringify(v)); } catch (e) { /* not saved */ } },
+  };
+
+  let OPT = null, C = [], IMG = {};
+  let game = null;          // {id, seat, token}
+  let view = null, prevView = null;
+  let botTimer = null, pollTimer = null, paused = false, busy = false, lastError = "";
+  let reveal = false;
+
+  // Card faces (same look as the replay viewer; real images from Scryfall when online)
+  function cardEl(id, extra, big) {
+    const c = C[id];
+    const n = el("div", `card ${c.deck || ""}`);
+    const kind = c.type === "creature" ? "Creature" : c.type === "land" ? "Land" : "Sorcery";
+    n.innerHTML = `<div class="name">${esc(c.name)}</div>${c.type !== "land" ? `<div class="cost">${c.cost}</div>` : ""}<div class="kind">${kind}</div><div class="rules">${esc(c.rules)}</div>`;
+    n.dataset.card = id;
+    n.title = `${c.name}: ${c.rules}`;
+    const art = IMG[c.name];
+    if (art) {
+      n.classList.add("art");
+      const img = new Image();
+      img.className = "art-img"; img.alt = c.name; img.draggable = false; img.decoding = "async";
+      img.src = big ? art.large : art.normal;
+      img.onerror = () => { n.classList.remove("art"); img.remove(); };
+      n.prepend(img);
+    }
+    if (extra) extra(n, c);
+    return n;
+  }
+  function loadImages() {
+    const KEY = "card-images-v1";
+    const cached = store.get(KEY);
+    if (cached && Date.now() - cached.at < 7 * 864e5 && C.every(c => cached.map[c.name])) { Object.assign(IMG, cached.map); return; }
+    const q = C.map(c => `!"${c.name}"`).join(" or ");
+    fetch(`https://api.scryfall.com/cards/search?unique=cards&q=${encodeURIComponent(q)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const map = {};
+        (d.data || []).forEach(card => {
+          const u = card.image_uris || (card.card_faces && card.card_faces[0].image_uris);
+          if (u) map[card.name] = { normal: u.normal, large: u.large || u.normal };
+        });
+        Object.assign(IMG, map); store.set(KEY, { at: Date.now(), map });
+        if (view) render();
+      })
+      .catch(() => { /* offline: drawn cards */ });
+  }
+
+  // Lobby
+  function lobby() {
+    stopTimers();
+    history.replaceState(null, "", location.pathname);
+    const saved = store.get("lobby") || {};
+    const bots = OPT.bots;
+    const botOptions = sel => bots.map(b => `<option value="${esc(b.id)}" ${b.id === sel ? "selected" : ""}>${esc(b.label)}</option>`).join("");
+    const deckOptions = sel => OPT.decks.map(d => `<option value="${d}" ${d === sel ? "selected" : ""}>${d[0].toUpperCase() + d.slice(1)}</option>`).join("");
+    let mode = saved.mode || "bot";
+    const ov = el("div", "overlay");
+    ov.innerHTML = `
+      <div class="panel" role="dialog" aria-labelledby="lobby-title">
+        <h1 id="lobby-title">MicroMagic</h1>
+        <p class="sub">The same 25 cards, two decks, and rules the agents train on.</p>
+        <div class="modes" role="group" aria-label="Game mode">
+          <button class="mode" data-mode="bot"><b>Play a bot</b><span>You against a trained or baseline agent.</span></button>
+          <button class="mode" data-mode="watch"><b>Watch bots</b><span>Two agents play while you watch, hands face up.</span></button>
+          <button class="mode" data-mode="human"><b>Play a friend</b><span>Two people, two windows or two computers.</span></button>
+        </div>
+        <div class="form" id="form"></div>
+        <div class="row-end"><span class="error" id="lobby-error"></span><button class="btn primary" id="start">Start game</button></div>
+      </div>`;
+    root.innerHTML = ""; root.appendChild(ov);
+    const form = ov.querySelector("#form");
+    const botDesc = id => (bots.find(b => b.id === id) || {}).description || "";
+    function drawForm() {
+      ov.querySelectorAll(".mode").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+      if (mode === "bot") {
+        form.innerHTML = `
+          <label for="f-deck">Your deck</label><select id="f-deck">${deckOptions(saved.deck || "aggro")}</select>
+          <label for="f-bot">Opponent</label><select id="f-bot">${botOptions(saved.bot || "heuristic")}</select>
+          <div class="hint" id="f-bot-hint"></div>
+          <label for="f-first">Who goes first</label><select id="f-first"><option value="random">Random</option><option value="0">You</option><option value="1">The bot</option></select>`;
+        const hint = () => form.querySelector("#f-bot-hint").textContent = botDesc(form.querySelector("#f-bot").value) + " The bot plays the other deck.";
+        form.querySelector("#f-bot").onchange = hint; hint();
+      } else if (mode === "watch") {
+        form.innerHTML = `
+          <label for="f-a">Bot 1</label><select id="f-a">${botOptions(saved.botA || "mcts")}</select>
+          <label for="f-adeck">Bot 1 deck</label><select id="f-adeck">${deckOptions(saved.deckA || "aggro")}</select>
+          <label for="f-b">Bot 2</label><select id="f-b">${botOptions(saved.botB || "heuristic")}</select>
+          <label for="f-bdeck">Bot 2 deck</label><select id="f-bdeck">${deckOptions(saved.deckB || "midrange")}</select>`;
+      } else {
+        form.innerHTML = `
+          <label for="f-name">Your name</label><input id="f-name" maxlength="24" value="${esc(saved.name || "Player 1")}">
+          <label for="f-deck">Your deck</label><select id="f-deck">${deckOptions(saved.deck || "aggro")}</select>
+          <div class="hint">Your friend plays the other deck. You'll get a link to send them.</div>
+          <label for="f-first">Who goes first</label><select id="f-first"><option value="random">Random</option><option value="0">You</option><option value="1">Your friend</option></select>`;
+      }
+    }
+    ov.querySelectorAll(".mode").forEach(b => b.onclick = () => { mode = b.dataset.mode; drawForm(); });
+    drawForm();
+    ov.querySelector("#start").onclick = async () => {
+      const v = id => (form.querySelector(id) || {}).value;
+      const other = d => OPT.decks.find(x => x !== d);
+      const first = f => f === "random" || f === undefined ? Math.round(Math.random()) : Number(f);
+      let body, save = { mode };
+      if (mode === "bot") {
+        const deck = v("#f-deck"); save = { ...save, deck, bot: v("#f-bot") };
+        body = { seats: [{ kind: "human", name: "You" }, { kind: "bot", bot: v("#f-bot") }], decks: [deck, other(deck)], first_player: first(v("#f-first")) };
+      } else if (mode === "watch") {
+        save = { ...save, botA: v("#f-a"), botB: v("#f-b"), deckA: v("#f-adeck"), deckB: v("#f-bdeck") };
+        body = { seats: [{ kind: "bot", bot: v("#f-a") }, { kind: "bot", bot: v("#f-b") }], decks: [v("#f-adeck"), v("#f-bdeck")], first_player: Math.round(Math.random()) };
+      } else {
+        const deck = v("#f-deck"); save = { ...save, deck, name: v("#f-name") };
+        body = { seats: [{ kind: "human", name: v("#f-name") || "Player 1" }, { kind: "human", name: "Player 2" }], decks: [deck, other(deck)], first_player: first(v("#f-first")) };
+      }
+      store.set("lobby", { ...saved, ...save });
+      try {
+        const g = await api("/api/games", body);
+        const seat = g.seats["0"] ? 0 : null;
+        startGame({ id: g.id, seat, token: seat === null ? null : g.seats["0"].token }, mode === "human" ? g.seats["1"].link : null);
+      } catch (e) { ov.querySelector("#lobby-error").textContent = e.message; }
+    };
+  }
+
+  function inviteDialog(link) {
+    const local = /\/\/(127\.0\.0\.1|localhost)/.test(link);
+    const ov = el("div", "overlay");
+    ov.innerHTML = `<div class="panel" role="dialog" aria-labelledby="inv-title">
+      <h1 id="inv-title" style="font-size:24px">Invite your opponent</h1>
+      <p class="sub">They play the other deck from this link. Each player only ever sees their own hand.</p>
+      <div class="invite" id="inv-link">${esc(link)}</div>
+      ${local ? `<p class="sub">This link works on this computer: open it in a second window. To play from another computer on your network, restart with <code>python -m micromagic.play --lan</code> and open the game from the address it prints.</p>` : ""}
+      <div class="row-end"><button class="btn" id="inv-copy">Copy link</button><button class="btn" id="inv-open">Open in new window</button><button class="btn primary" id="inv-close">Continue</button></div></div>`;
+    document.body.appendChild(ov);
+    ov.querySelector("#inv-copy").onclick = () => navigator.clipboard && navigator.clipboard.writeText(link);
+    ov.querySelector("#inv-open").onclick = () => window.open(link, "_blank");
+    ov.querySelector("#inv-close").onclick = () => ov.remove();
+  }
+
+  // Game screen
+  function startGame(g, inviteLink) {
+    game = g; view = null; prevView = null; paused = false; lastError = "";
+    const q = new URLSearchParams({ game: g.id });
+    if (g.seat !== null) { q.set("seat", g.seat); q.set("token", g.token); }
+    history.replaceState(null, "", `?${q}`);
+    root.innerHTML = `
+      <div class="app">
+        <header class="top"><h1>MicroMagic</h1><span class="matchup" id="matchup"></span><span class="result" id="result"></span></header>
+        <main class="table" id="table">
+          <section class="seat seat-1" id="seat-top"></section>
+          <div class="lands seat-1" id="lands-top" aria-label="Opponent's lands"></div>
+          <div class="battlefield seat-1" id="field-top"></div>
+          <div class="lane" id="lane"></div>
+          <div class="battlefield seat-0" id="field-bottom"></div>
+          <div class="lands seat-0" id="lands-bottom" aria-label="Your lands"></div>
+          <section class="seat seat-0" id="seat-bottom"></section>
+          <svg class="links" id="links" aria-hidden="true"></svg>
+        </main>
+        <aside class="log" id="log" aria-label="Game log"><h2>Game log</h2><div id="log-entries"></div></aside>
+        <footer class="controls" id="controls"></footer>
+      </div>
+      <div id="preview" aria-hidden="true"></div>`;
+    hookPreview();
+    if (inviteLink) inviteDialog(inviteLink);
+    refresh();
+  }
+
+  function stopTimers() { clearTimeout(botTimer); clearTimeout(pollTimer); botTimer = pollTimer = null; }
+
+  async function refresh() {
+    try {
+      const q = new URLSearchParams();
+      if (game.seat !== null) { q.set("seat", game.seat); q.set("token", game.token); }
+      if (reveal) q.set("reveal", "1");
+      const v = await api(`/api/games/${game.id}?${q}`);
+      prevView = view; view = v; lastError = "";
+      render();
+      schedule();
+    } catch (e) {
+      lastError = e.message; renderControls();
+      pollTimer = setTimeout(refresh, 2000);
+    }
+  }
+
+  function botDelay() {
+    if (view.seats.every(s => s.kind === "bot")) return Number((document.getElementById("speed") || {}).value || 600);
+    return 550;
+  }
+  function schedule() {
+    stopTimers();
+    if (view.waiting_for === "nobody") return;
+    if (view.waiting_for === "bot") {
+      if (!paused) botTimer = setTimeout(async () => {
+        if (busy) return; busy = true;
+        try { await api(`/api/games/${game.id}/bot_step`, {}); } catch (e) { lastError = e.message; }
+        busy = false; refresh();
+      }, botDelay());
+    } else if (view.to_move !== game.seat) {
+      pollTimer = setTimeout(refresh, 700); // the other human is deciding
+    }
+  }
+
+  async function act(action) {
+    if (busy) return; busy = true;
+    try { await api(`/api/games/${game.id}/act`, { seat: game.seat, token: game.token, action }); }
+    catch (e) { lastError = e.message; }
+    busy = false; refresh();
+  }
+
+  // Rendering
+  const me = () => (game.seat === null ? 0 : game.seat);
+  function legalBy(kind, pred) { return view.legal.find(l => l.kind === kind && pred(l)); }
+
+  function render() {
+    const s = view.state, mine = me(), opp = 1 - mine;
+    document.getElementById("matchup").textContent =
+      `${view.seats[0].name} (${view.players[0]}) vs ${view.seats[1].name} (${view.players[1]}), seed ${view.seed}`;
+    document.getElementById("result").textContent = s.terminal ? view.result : "";
+    seat("seat-top", opp, false); seat("seat-bottom", mine, true);
+    field("field-top", opp, "seat-1"); field("field-bottom", mine, "seat-0");
+    lands("lands-top", opp); lands("lands-bottom", mine);
+    lane(); log(); renderControls(); banner();
+    requestAnimationFrame(() => setTimeout(links, 380));
+  }
+
+  function isMyTurnHuman() { return game.seat !== null && view.to_move === game.seat; }
+
+  function seat(id, p, bottom) {
+    const s = view.state, P = s.players[p], box = document.getElementById(id);
+    const before = prevView ? prevView.state.players[p].life : P.life;
+    box.classList.toggle("active", s.active === p && !s.terminal);
+    const label = game.seat === p ? "You" : view.seats[p].kind === "bot" ? `${view.seats[p].name} (bot)` : view.seats[p].name;
+    box.innerHTML = `
+      <div class="who" id="who-${p}"><div class="deck">${esc(view.players[p])}</div><div class="agent">${esc(label)}${p === view.first_player ? ", went first" : ""}</div></div>
+      <div><div class="life${P.life < before ? " hit" : P.life > before ? " heal" : ""}">${P.life}</div><div class="life-label">life</div></div>
+      <div class="zones"><span>Lands <b>${P.lands}</b> (${P.lands_untapped} untapped)</span><span>Library <b>${P.library}</b></span><span>Hand <b>${P.hand_count}</b></span></div>`;
+    const target = isMyTurnHuman() && legalBy("target", l => l.owner === p && l.slot === null);
+    if (target) {
+      const who = box.querySelector(".who"); who.classList.add("target"); who.title = target.label;
+      who.onclick = () => act(target.action);
+    }
+    const hand = el("div", `hand${bottom && game.seat === p ? " mine" : ""}`);
+    if (P.hand) {
+      P.hand.forEach((cid, slot) => hand.appendChild(cardEl(cid, n => {
+        const play = game.seat === p && isMyTurnHuman() && legalBy("play", l => l.hand_slot === slot);
+        if (play) { n.classList.add("can"); n.title = play.label; n.onclick = () => act(play.action); }
+      })));
+    } else {
+      for (let i = 0; i < P.hand_count; i++) hand.appendChild(el("div", "hand-back"));
+    }
+    box.appendChild(hand);
+  }
+
+  function field(id, p, seatCls) {
+    const s = view.state, P = s.players[p], box = document.getElementById(id);
+    box.className = `battlefield ${seatCls}`;
+    box.innerHTML = "";
+    const myTurn = isMyTurnHuman();
+    P.creatures.forEach((cr, slot) => {
+      const cell = el("div", "slot");
+      if (cr) {
+        const was = prevView && prevView.state.players[p].creatures[slot];
+        cell.appendChild(cardEl(cr.card, n => {
+          n.id = `c-${p}-${slot}`;
+          if (cr.tapped) n.classList.add("tapped");
+          if (cr.sick) n.classList.add("sick");
+          if (cr.attacking) n.classList.add("attacking");
+          if (cr.blocking >= 0) n.classList.add("blocking");
+          const isBlocker = s.blocker === slot && p !== s.active;
+          if (isBlocker) n.classList.add("current-blocker");
+          if (!was || was.card !== cr.card) n.classList.add("entered");
+          n.appendChild(el("div", `pt${cr.pumped ? " pumped changed" : ""}`, `${cr.power}/${cr.toughness}`));
+          if (cr.damage > 0) n.appendChild(el("div", "dmg", `${cr.damage}`));
+          const badge = cr.attacking ? "attacking" : cr.blocking >= 0 ? "blocking" : isBlocker ? "choosing block" : cr.sick ? "summoning sick" : "";
+          if (badge) n.appendChild(el("div", "badge", badge));
+          if (!myTurn) return;
+          const mine = p === game.seat;
+          const attack = mine && legalBy("attack", l => l.slot === slot);
+          const block = !mine && legalBy("block", l => l.attacker_slot === slot);
+          const target = legalBy("target", l => l.owner === p && l.slot === slot);
+          const choice = attack || block;
+          if (choice) { n.classList.add("can"); n.title = choice.label; n.onclick = () => act(choice.action); }
+          else if (target) { n.classList.add("target"); n.title = target.label; n.onclick = () => act(target.action); }
+        }));
+      }
+      box.appendChild(cell);
+    });
+  }
+
+  const LAND = p => (C.find(c => c.type === "land" && c.deck === view.seats[p].deck) || C.find(c => c.type === "land")).id;
+  function lands(id, p) {
+    const P = view.state.players[p], box = document.getElementById(id);
+    box.innerHTML = "";
+    if (!P.lands) { box.appendChild(el("span", "none", "No lands yet")); return; }
+    const up = el("div", "pile"), down = el("div", "pile tapped-pile");
+    for (let i = 0; i < P.lands; i++) {
+      const t = i >= P.lands_untapped;
+      (t ? down : up).appendChild(cardEl(LAND(p), n => { if (t) n.classList.add("tapped"); }));
+    }
+    if (P.lands_untapped) box.appendChild(up);
+    if (P.lands - P.lands_untapped) box.appendChild(down);
+  }
+
+  function prompt() {
+    const s = view.state;
+    if (s.terminal) return { text: view.result };
+    if (view.waiting_for === "bot") {
+      const who = view.seats[view.to_move].name;
+      return { text: paused ? `Paused. ${who} is next.` : `${who} is thinking`, waiting: true, thinking: !paused };
+    }
+    if (!isMyTurnHuman()) return { text: `Waiting for ${view.seats[view.to_move].name}`, waiting: true, thinking: true };
+    const pass = view.legal.find(l => l.kind === "pass");
+    if (s.phase === "Target") return { text: `Choose a target for ${C[s.pending].name}.` };
+    if (s.phase === "Block") return { text: `Click an attacker to block it with your glowing creature, or don't block.`, pass };
+    if (s.phase === "Attack") return { text: "Click creatures to attack with them, then confirm.", pass };
+    return { text: view.legal.some(l => l.kind === "play") ? "Play a glowing card from your hand, or move on." : "Nothing to play. Move on when ready.", pass };
+  }
+
+  function lane() {
+    const s = view.state, box = document.getElementById("lane");
+    const last = view.log[view.log.length - 1];
+    const phase = s.terminal ? "" : s.phase;
+    const pills = ["Main 1", "Attack", "Block", "Main 2"].map(ph => `<span class="phase${ph === phase ? " now" : ""}">${ph}</span>`).join("");
+    const who = last.actor === null ? "Setup" : (last.actor === game.seat ? "You" : view.seats[last.actor].name);
+    const p = prompt();
+    box.innerHTML = `
+      <div><div class="turn">Turn ${s.turn}</div><div class="phases">${pills}</div></div>
+      <div class="caption" aria-live="polite"><div class="who-acted">${esc(who)}</div><div class="what">${esc(last.text)}</div>${last.events.length ? `<div class="events">${last.events.map(esc).join("; ")}</div>` : ""}</div>
+      <div class="action"><div class="prompt${p.waiting ? " waiting" : ""}${p.thinking ? " thinking" : ""}">${esc(p.text)}</div></div>`;
+    const actionBox = box.querySelector(".action");
+    if (s.pending !== null && s.pending !== undefined) {
+      const pend = el("div", "pending"); pend.appendChild(cardEl(s.pending)); actionBox.prepend(pend);
+    }
+    if (p.pass) {
+      const b = el("button", "pass-btn", esc(p.pass.button || p.pass.label));
+      b.onclick = () => act(p.pass.action);
+      actionBox.appendChild(b);
+    }
+  }
+
+  function log() {
+    const box = document.getElementById("log-entries");
+    let html = "", lastTurn = null;
+    view.log.forEach((f, i) => {
+      if (i === 0) { html += `<div class="turn-head">Setup</div>`; lastTurn = "setup"; }
+      else if (f.turn !== lastTurn) { html += `<div class="turn-head">Turn ${f.turn}</div>`; lastTurn = f.turn; }
+      const who = f.actor === null ? "" : `<span class="p${f.actor === me() ? 0 : 1}">${esc(f.actor === game.seat ? "You" : view.seats[f.actor].name)}:</span> `;
+      html += `<div class="entry${i === view.log.length - 1 ? " now" : ""}" style="padding:5px 18px 5px 15px;border-left:3px solid ${i === view.log.length - 1 ? "var(--brass)" : "transparent"}"><span class="t">${who}${esc(f.text)}</span>${f.events.length ? `<span class="e">${f.events.map(esc).join("; ")}</span>` : ""}</div>`;
+    });
+    box.innerHTML = html;
+    const logEl = document.getElementById("log");
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function renderControls() {
+    const box = document.getElementById("controls");
+    if (!box || !view) return;
+    const allBots = view.seats.every(s => s.kind === "bot");
+    const humans = view.seats.filter(s => s.kind === "human").length;
+    const canReveal = !allBots && humans === 1;
+    const speed = document.getElementById("speed");
+    const speedVal = speed ? speed.value : "600";
+    box.innerHTML = `
+      <button class="btn" id="new">New game</button>
+      ${allBots ? `<button class="btn primary" id="pause">${paused ? "Play" : "Pause"}</button>
+        <label>Speed <select id="speed"><option value="1400">Slow</option><option value="600">Normal</option><option value="150">Fast</option><option value="0">Instant</option></select></label>` : ""}
+      ${canReveal ? `<label><input type="checkbox" id="reveal" ${reveal ? "checked" : ""}> Show the bot's hand</label>` : ""}
+      <span class="error">${esc(lastError)}</span>
+      <span class="spacer"></span>
+      <a class="btn" id="replay" href="/api/games/${game.id}/replay${game.seat !== null ? `?seat=${game.seat}&token=${encodeURIComponent(game.token)}` : ""}" ${view.state.terminal || allBots || canReveal ? "" : 'aria-disabled="true" style="opacity:.4;pointer-events:none"'}>Download replay</a>`;
+    if (document.getElementById("speed")) document.getElementById("speed").value = speedVal;
+    box.querySelector("#new").onclick = lobby;
+    const pauseBtn = box.querySelector("#pause");
+    if (pauseBtn) pauseBtn.onclick = () => { paused = !paused; renderControls(); lane(); schedule(); };
+    const rv = box.querySelector("#reveal");
+    if (rv) rv.onchange = () => { reveal = rv.checked; refresh(); };
+  }
+
+  function banner() {
+    const old = document.getElementById("banner"); if (old) old.remove();
+    if (!view.state.terminal) return;
+    const s = view.state, w = s.winner;
+    const headline = w === null ? view.result : (game.seat === null ? view.result : (w === game.seat ? "You win!" : `${view.seats[w].name} wins`));
+    const b = el("div", "banner", `<div class="big">${esc(headline)}</div><div class="small">Turn ${s.turn}. Final life: ${esc(view.players[0])} ${s.players[0].life}, ${esc(view.players[1])} ${s.players[1].life}</div>
+      <div class="row-end" style="justify-content:center"><button class="btn primary" id="again">New game</button></div>`);
+    b.id = "banner";
+    document.getElementById("table").appendChild(b);
+    b.querySelector("#again").onclick = lobby;
+  }
+
+  function links() {
+    if (!view) return;
+    const s = view.state, svg = document.getElementById("links"), table = document.getElementById("table");
+    if (!svg || !table) return;
+    const t = table.getBoundingClientRect();
+    let out = "";
+    [0, 1].forEach(p => s.players[p].creatures.forEach((cr, slot) => {
+      if (!cr || cr.blocking < 0) return;
+      const a = document.getElementById(`c-${p}-${slot}`), b = document.getElementById(`c-${1 - p}-${cr.blocking}`);
+      if (!a || !b) return;
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const top = ra.top < rb.top;
+      out += `<line x1="${ra.left + ra.width / 2 - t.left}" y1="${(top ? ra.bottom : ra.top) - t.top}" x2="${rb.left + rb.width / 2 - t.left}" y2="${(top ? rb.top : rb.bottom) - t.top}" stroke="#e9e4d8" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/>`;
+    }));
+    svg.innerHTML = out;
+  }
+
+  function hookPreview() {
+    const preview = document.getElementById("preview");
+    document.addEventListener("mouseover", e => {
+      const card = e.target.closest && e.target.closest(".card[data-card]");
+      if (!card || preview.contains(card)) { preview.style.display = "none"; return; }
+      preview.innerHTML = ""; preview.appendChild(cardEl(Number(card.dataset.card), null, true)); preview.style.display = "block";
+    });
+    document.addEventListener("mousemove", e => {
+      if (preview.style.display !== "block") return;
+      const w = preview.offsetWidth, h = preview.offsetHeight;
+      preview.style.left = `${e.clientX + 24 + w > innerWidth ? e.clientX - w - 24 : e.clientX + 24}px`;
+      preview.style.top = `${Math.min(Math.max(8, e.clientY - h / 2), innerHeight - h - 8)}px`;
+    });
+  }
+  window.addEventListener("resize", () => links());
+
+  // Start: join from a link, or show the lobby
+  (async () => {
+    try { OPT = await api("/api/options"); }
+    catch (e) { root.innerHTML = `<div class="empty"><div><h1>Can't reach the MicroMagic server</h1><p>Start it with <code>python -m micromagic.play</code> and reload this page.</p></div></div>`; return; }
+    C = OPT.cards; loadImages();
+    const q = new URLSearchParams(location.search);
+    if (q.get("game")) startGame({ id: q.get("game"), seat: q.has("seat") ? Number(q.get("seat")) : null, token: q.get("token") });
+    else lobby();
+  })();
+})();
+</script>
+</body>
+</html>

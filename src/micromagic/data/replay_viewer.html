@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MicroMagic Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --mat: #1d3337;
+  --mat-deep: #142427;
+  --mat-line: #2f4b50;
+  --paper: #efe6d2;
+  --paper-shade: #ddd0b4;
+  --ink: #2a2421;
+  --ink-soft: #6b6157;
+  --chalk: #e9e4d8;
+  --chalk-soft: #a9b5b2;
+  --brass: #d9a441;
+  --ember: #c8553d;
+  --moss: #6b8f47;
+  --dusk: #6d6aa8;
+  --card-w: 104px;
+  --card-h: 146px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(ellipse at 50% 40%, var(--mat) 0%, var(--mat-deep) 75%);
+  background-color: var(--mat-deep);
+  color: var(--chalk);
+  font: 15px/1.45 "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top" "table log" "controls controls";
+  height: 100vh;
+}
+header.top {
+  grid-area: top;
+  display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  padding: 14px 24px 10px;
+  border-bottom: 1px solid var(--mat-line);
+}
+header.top h1 {
+  margin: 0; font: 700 22px/1 "Alegreya SC", Georgia, serif; letter-spacing: .02em;
+}
+header.top .matchup { color: var(--chalk-soft); }
+header.top .result { margin-left: auto; color: var(--brass); font-weight: 700; }
+
+/* Table */
+.table {
+  grid-area: table;
+  display: grid;
+  grid-template-rows: auto auto minmax(var(--card-h), 1fr) auto minmax(var(--card-h), 1fr) auto auto;
+  gap: 8px;
+  padding: 14px 24px;
+  position: relative;
+  overflow: auto;
+}
+.seat {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.who { min-width: 150px; }
+.who .deck { font: 700 20px/1.1 "Alegreya SC", Georgia, serif; }
+.who .agent { color: var(--chalk-soft); font-size: 13px; }
+.seat.active .deck::after { content: "  active"; font: 500 12px "Alegreya Sans", sans-serif; color: var(--brass); vertical-align: middle; }
+.life {
+  font: 800 44px/1 "Alegreya SC", Georgia, serif;
+  min-width: 70px; text-align: right;
+  font-variant-numeric: tabular-nums;
+  transition: color .4s;
+}
+.life.hit { color: var(--ember); }
+.life.heal { color: var(--moss); }
+.life-label { font-size: 12px; color: var(--chalk-soft); text-align: right; }
+.zones { display: flex; gap: 18px; color: var(--chalk-soft); font-size: 13px; align-items: center; flex-wrap: wrap; }
+.zones b { color: var(--chalk); font-size: 15px; }
+
+.hand { display: flex; gap: 6px; margin-left: auto; align-items: center; min-height: 64px; }
+.hand .card { --s: .58; }
+.hand .card .rules, .hand .card .kind { display: none; }
+.hand-back {
+  width: calc(var(--card-w) * .42); height: calc(var(--card-h) * .42);
+  border-radius: 6px; border: 1px solid var(--mat-line);
+  background: repeating-linear-gradient(45deg, #24403f 0 6px, #1b3234 6px 12px);
+}
+
+.battlefield {
+  display: grid; grid-template-columns: repeat(5, calc(var(--card-h) + 8px));
+  gap: 8px; align-items: center; justify-content: center;
+}
+.slot {
+  height: calc(var(--card-h) + 8px); display: grid; place-items: center;
+  border-radius: 10px; border: 1px dashed rgba(169, 181, 178, .18);
+}
+
+/* Cards */
+.card {
+  --s: 1;
+  width: calc(var(--card-w) * var(--s)); height: calc(var(--card-h) * var(--s));
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-shade) 100%);
+  color: var(--ink);
+  border-radius: calc(8px * var(--s));
+  border: calc(4px * var(--s)) solid var(--edge, var(--dusk));
+  box-shadow: 0 2px 0 rgba(0,0,0,.35);
+  padding: calc(6px * var(--s));
+  display: flex; flex-direction: column;
+  position: relative;
+  transition: transform .35s ease, box-shadow .35s ease, filter .35s;
+  font-size: calc(11px * var(--s));
+  line-height: 1.2;
+}
+.card.aggro { --edge: var(--ember); }
+.card.midrange { --edge: var(--moss); }
+.card .name { font: 700 calc(12.5px * var(--s))/1.05 "Alegreya SC", Georgia, serif; padding-right: calc(18px * var(--s)); }
+.card .cost {
+  position: absolute; top: calc(4px * var(--s)); right: calc(4px * var(--s));
+  width: calc(18px * var(--s)); height: calc(18px * var(--s)); border-radius: 50%;
+  background: var(--ink); color: var(--paper);
+  display: grid; place-items: center; font-weight: 700; font-size: calc(11px * var(--s));
+}
+.card .kind { color: var(--ink-soft); margin-top: calc(4px * var(--s)); font-size: calc(10px * var(--s)); }
+.card .rules { margin-top: auto; font-size: calc(10.5px * var(--s)); }
+.card .pt {
+  align-self: flex-end; margin-top: calc(4px * var(--s));
+  font: 800 calc(15px * var(--s))/1 "Alegreya SC", Georgia, serif;
+  background: var(--paper); border: 1px solid var(--ink-soft); border-radius: 4px;
+  padding: calc(2px * var(--s)) calc(5px * var(--s));
+}
+.card .pt.pumped { background: var(--brass); }
+.card .dmg {
+  position: absolute; left: calc(-8px * var(--s)); bottom: calc(14px * var(--s));
+  background: var(--ember); color: #fff; border-radius: 999px;
+  font-weight: 700; padding: 1px 7px; font-size: 12px;
+}
+.card .badge {
+  position: absolute; left: 50%; bottom: calc(-10px * var(--s)); transform: translateX(-50%);
+  background: var(--mat-deep); color: var(--chalk); border: 1px solid var(--chalk-soft);
+  border-radius: 999px; padding: 0 8px; font-size: 11px; white-space: nowrap;
+}
+.card.tapped { transform: rotate(90deg); filter: saturate(.55) brightness(.85); }
+.card.sick { filter: saturate(.6); }
+.card.attacking { box-shadow: 0 0 0 3px var(--ember), 0 0 22px rgba(200, 85, 61, .65); }
+.card.blocking { box-shadow: 0 0 0 3px var(--chalk), 0 0 18px rgba(233, 228, 216, .45); }
+.card.current-blocker { box-shadow: 0 0 0 3px var(--brass), 0 0 18px rgba(217, 164, 65, .6); }
+.seat-0 .card.attacking, .seat-0 .card.blocking { transform: translateY(-14px); }
+.seat-1 .card.attacking, .seat-1 .card.blocking { transform: translateY(14px); }
+.card.entered { animation: enter .45s ease-out; }
+@keyframes enter { from { opacity: 0; transform: translateY(10px) scale(.92); } }
+
+/* Centre lane */
+.lane {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center;
+  border-top: 1px solid var(--mat-line); border-bottom: 1px solid var(--mat-line);
+  padding: 10px 0;
+}
+.turn { font: 700 18px/1 "Alegreya SC", Georgia, serif; white-space: nowrap; }
+.phases { display: flex; gap: 4px; margin-top: 8px; }
+.phase { font-size: 12px; padding: 2px 8px; border-radius: 999px; color: var(--chalk-soft); border: 1px solid var(--mat-line); background: var(--mat-deep); }
+.lane > * { position: relative; z-index: 1; }
+.phase.now { color: var(--mat-deep); background: var(--brass); border-color: var(--brass); font-weight: 700; }
+.caption { min-width: 0; }
+.caption .who-acted { color: var(--chalk-soft); font-size: 13px; }
+.caption .what { font: 700 19px/1.25 "Alegreya SC", Georgia, serif; }
+.caption .events { color: var(--chalk-soft); font-size: 13.5px; margin-top: 2px; }
+.pending { display: flex; align-items: center; gap: 10px; color: var(--brass); font-size: 13px; }
+.pending .card { --s: .7; }
+
+/* Real card images (Scryfall) replace the drawn face when available */
+.card.art { background: #171310; border: 0; padding: 0; border-radius: calc(5px * var(--s)); }
+.card.art > img.art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.card.art .name, .card.art .cost, .card.art .kind, .card.art .rules, .card.art .pt { display: none; }
+.card.art .pt.changed { display: block; position: absolute; right: calc(4px * var(--s)); bottom: calc(6px * var(--s)); }
+
+/* Lands: a row of land cards in front of each player, tapped ones turned sideways */
+.lands { display: flex; align-items: center; justify-content: center; gap: 36px; min-height: calc(var(--card-h) * .5 + 6px); }
+.lands .pile { display: flex; align-items: center; }
+.lands .card { --s: .5; }
+.lands .pile .card + .card { margin-left: calc(var(--card-w) * -.28); }
+.lands .pile.tapped-pile .card + .card { margin-left: calc(var(--card-w) * -.2); }
+.lands .pile.tapped-pile .card { margin: 0 calc(var(--card-w) * .1); }
+.lands .none { color: var(--chalk-soft); font-size: 13px; }
+
+#preview { position: fixed; z-index: 50; pointer-events: none; display: none; filter: drop-shadow(0 12px 30px rgba(0,0,0,.6)); }
+#preview .card { --s: 2.4; transform: none; filter: none; box-shadow: none; animation: none; }
+.credit { font-size: 11.5px; color: var(--chalk-soft); padding: 14px 18px 0; line-height: 1.4; }
+
+svg.links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 0; }
+.battlefield { position: relative; z-index: 1; }
+
+/* Banner */
+.banner {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: var(--mat-deep); border: 2px solid var(--brass); border-radius: 14px;
+  padding: 18px 34px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  z-index: 5;
+}
+.banner .big { font: 800 30px/1.1 "Alegreya SC", Georgia, serif; color: var(--brass); }
+.banner .small { color: var(--chalk-soft); }
+.banner .last { margin-top: 8px; font-size: 13.5px; color: var(--chalk); max-width: 46ch; }
+
+/* Log */
+aside.log {
+  grid-area: log; border-left: 1px solid var(--mat-line);
+  overflow-y: auto; padding: 0 0 24px; background: rgba(20, 36, 39, .55);
+}
+.log h2 { font: 700 15px "Alegreya SC", Georgia, serif; margin: 0; padding: 14px 18px 8px; color: var(--chalk-soft); }
+.log .turn-head { font: 700 14px "Alegreya SC", Georgia, serif; padding: 10px 18px 4px; color: var(--chalk); position: sticky; top: 0; background: #172a2d; z-index: 1; }
+.log button.entry {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  padding: 5px 18px 5px 15px; border-left: 3px solid transparent; cursor: pointer;
+}
+.log button.entry:hover { background: rgba(233, 228, 216, .05); }
+.log button.entry.now { border-left-color: var(--brass); background: rgba(217, 164, 65, .12); }
+.log .entry .t { display: block; }
+.log .entry .e { display: block; color: var(--chalk-soft); font-size: 12.5px; }
+.log .entry .p0 { color: #e58a74; }
+.log .entry .p1 { color: #9fbe7c; }
+
+/* Controls */
+footer.controls {
+  grid-area: controls; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 24px; border-top: 1px solid var(--mat-line); background: var(--mat-deep);
+}
+footer.controls button {
+  background: transparent; border: 1px solid var(--mat-line); border-radius: 8px;
+  padding: 5px 12px; cursor: pointer;
+}
+footer.controls button:hover { border-color: var(--chalk-soft); }
+footer.controls button.primary { background: var(--brass); color: var(--mat-deep); border-color: var(--brass); font-weight: 700; min-width: 72px; }
+footer.controls input[type=range] { flex: 1; min-width: 160px; accent-color: var(--brass); }
+footer.controls .count { color: var(--chalk-soft); font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+footer.controls label { color: var(--chalk-soft); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+footer.controls select { background: var(--mat); border: 1px solid var(--mat-line); border-radius: 6px; padding: 3px 6px; }
+
+.empty { display: grid; place-items: center; height: 100vh; text-align: center; padding: 24px; }
+
+@media (max-width: 1100px) {
+  :root { --card-w: 84px; --card-h: 118px; }
+  .card { font-size: 9.5px; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto 260px auto; grid-template-areas: "top" "table" "log" "controls"; height: auto; }
+  aside.log { border-left: 0; border-top: 1px solid var(--mat-line); }
+  :root { --card-w: 47px; --card-h: 66px; }
+  .card .rules, .card .kind, .card .cost { display: none; }
+  .card .name { padding-right: 0; font-size: 9px; }
+  .card .pt { font-size: 12px; }
+  .table { padding: 12px 16px; }
+  .battlefield { grid-template-columns: repeat(5, calc(var(--card-h) + 4px)); gap: 4px; }
+  .lane { grid-template-columns: 1fr; gap: 8px; }
+  .banner { width: calc(100% - 32px); padding: 14px 16px; }
+  .banner .big { font-size: 22px; }
+  .life { font-size: 34px; }
+  .hand { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card, .life { transition: none; }
+  .card.entered { animation: none; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script id="replay-data" type="application/json">/*__REPLAY_DATA__*/null</script>
+<script>
+(() => {
+  const root = document.getElementById("root");
+  let R;
+  try { R = JSON.parse(document.getElementById("replay-data").textContent); } catch (e) { R = null; }
+  if (!R || !R.frames || !R.frames.length) {
+    root.innerHTML = '<div class="empty"><div><h1>No replay loaded</h1><p>Create one with <code>python scripts/replay_game.py --seed 7</code> and open the HTML file it writes.</p></div></div>';
+    return;
+  }
+
+  const C = R.cards;
+  const PHASES = ["Main 1", "Attack", "Block", "Main 2"];
+  const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html !== undefined) n.innerHTML = html; return n; };
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+  root.innerHTML = `
+  <div class="app">
+    <header class="top">
+      <h1>MicroMagic replay</h1>
+      <span class="matchup">${esc(R.players[0])} (${esc(R.agents[0])}) vs ${esc(R.players[1])} (${esc(R.agents[1])}), seed ${R.seed}</span>
+      <span class="result">${esc(R.result)}</span>
+    </header>
+    <main class="table" id="table">
+      <section class="seat seat-1" id="seat-1"></section>
+      <div class="lands seat-1" id="lands-1" aria-label="Lands"></div>
+      <div class="battlefield seat-1" id="field-1"></div>
+      <div class="lane" id="lane"></div>
+      <div class="battlefield seat-0" id="field-0"></div>
+      <div class="lands seat-0" id="lands-0" aria-label="Lands"></div>
+      <section class="seat seat-0" id="seat-0"></section>
+      <svg class="links" id="links" aria-hidden="true"></svg>
+    </main>
+    <aside class="log" id="log" aria-label="Game log"><h2>Game log</h2></aside>
+    <footer class="controls">
+      <button id="first" aria-label="First step">First</button>
+      <button id="prev" aria-label="Previous step">Back</button>
+      <button id="play" class="primary">Play</button>
+      <button id="next" aria-label="Next step">Next</button>
+      <button id="last" aria-label="Last step">Last</button>
+      <button id="next-turn">Next turn</button>
+      <input type="range" id="scrub" min="0" max="${R.frames.length - 1}" value="0" aria-label="Step">
+      <span class="count" id="count"></span>
+      <label>Speed <select id="speed"><option value="1100">Slow</option><option value="600" selected>Normal</option><option value="250">Fast</option></select></label>
+      <label><input type="checkbox" id="reveal" checked> Show hidden hands</label>
+    </footer>
+  </div>
+  <div id="preview" aria-hidden="true"></div>`;
+
+  // Game log, grouped by turn.
+  const log = document.getElementById("log");
+  const credit = el("p", "credit", 'Card images from <a href="https://scryfall.com" style="color:inherit">Scryfall</a> when online. MicroMagic is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. \u00a9Wizards of the Coast LLC.');
+  const entries = [];
+  let lastTurn = null;
+  R.frames.forEach((f, i) => {
+    if (f.turn !== lastTurn) {
+      const owner = i === 0 ? R.first_player : f.state.active;
+      const head = el("div", "turn-head", i === 0 ? "Setup" : `Turn ${f.turn}, ${esc(R.players[f.actor ?? owner])}`);
+      log.appendChild(head);
+      lastTurn = i === 0 ? "setup" : f.turn;
+    }
+    const who = f.actor === null ? "" : `<span class="p${f.actor}">${esc(R.players[f.actor])}:</span> `;
+    const b = el("button", "entry", `<span class="t">${who}${esc(f.text)}</span>${f.events.length ? `<span class="e">${f.events.map(esc).join("; ")}</span>` : ""}`);
+    b.addEventListener("click", () => go(i));
+    log.appendChild(b);
+    entries.push(b);
+  });
+  log.appendChild(credit);
+
+  function cardEl(id, extra, big) {
+    const c = C[id];
+    const n = el("div", `card ${c.deck || ""}`);
+    n.setAttribute("title", `${c.name}: ${c.rules || c.type}`);
+    const kind = c.type === "creature" ? "Creature" : c.type === "land" ? "Land" : "Sorcery";
+    n.innerHTML = `<div class="name">${esc(c.name)}</div>${c.type !== "land" ? `<div class="cost">${c.cost}</div>` : ""}<div class="kind">${kind}</div><div class="rules">${esc(c.rules)}</div>`;
+    n.dataset.card = id;
+    const art = IMG[c.name];
+    if (art) {
+      n.classList.add("art");
+      const img = new Image();
+      img.className = "art-img"; img.alt = c.name; img.draggable = false; img.decoding = "async";
+      img.src = big ? art.large : art.normal;
+      img.onerror = () => { n.classList.remove("art"); img.remove(); };
+      n.prepend(img);
+    }
+    if (extra) extra(n, c);
+    return n;
+  }
+
+  // Card images: one Scryfall search for the whole pool, cached for a week.
+  const IMG = {};
+  const CACHE_KEY = "micromagic-card-images-v1";
+  const WEEK_MS = 7 * 24 * 3600 * 1000;
+  function useImages(map) { Object.assign(IMG, map); render(-1); }
+  function loadImages() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      if (cached && Date.now() - cached.at < WEEK_MS && C.every(c => cached.map[c.name])) return useImages(cached.map);
+    } catch (e) { /* storage unavailable: fetch instead */ }
+    const q = C.map(c => `!"${c.name}"`).join(" or ");
+    fetch(`https://api.scryfall.com/cards/search?unique=cards&q=${encodeURIComponent(q)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const map = {};
+        (d.data || []).forEach(card => {
+          const uris = card.image_uris || (card.card_faces && card.card_faces[0].image_uris);
+          if (uris) map[card.name] = { normal: uris.normal, large: uris.large || uris.normal };
+        });
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), map })); } catch (e) { /* not cached */ }
+        useImages(map);
+      })
+      .catch(() => { /* offline or blocked: keep the drawn cards */ });
+  }
+
+  // The land card each player plays, from the card pool's deck tags.
+  const LAND = [0, 1].map(p => {
+    const c = C.find(c => c.type === "land" && c.deck === R.decks[p]) || C.find(c => c.type === "land");
+    return c.id;
+  });
+  function lands(p, s) {
+    const P = s.players[p];
+    const box = document.getElementById(`lands-${p}`);
+    box.innerHTML = "";
+    if (!P.lands) { box.appendChild(el("span", "none", "No lands yet")); return; }
+    const untapped = el("div", "pile"), tapped = el("div", "pile tapped-pile");
+    for (let i = 0; i < P.lands; i++) {
+      const isTapped = i >= P.lands_untapped;
+      const card = cardEl(LAND[p], n => { if (isTapped) n.classList.add("tapped"); });
+      (isTapped ? tapped : untapped).appendChild(card);
+    }
+    if (P.lands_untapped) box.appendChild(untapped);
+    if (P.lands - P.lands_untapped) box.appendChild(tapped);
+  }
+
+  // Hover any card for a full-size, readable copy.
+  const preview = document.getElementById("preview");
+  document.addEventListener("mouseover", e => {
+    const card = e.target.closest && e.target.closest(".card[data-card]");
+    if (!card || preview.contains(card)) { preview.style.display = "none"; return; }
+    preview.innerHTML = "";
+    preview.appendChild(cardEl(Number(card.dataset.card), null, true));
+    preview.style.display = "block";
+  });
+  document.addEventListener("mousemove", e => {
+    if (preview.style.display !== "block") return;
+    const w = preview.offsetWidth, h = preview.offsetHeight;
+    const x = e.clientX + 24 + w > innerWidth ? e.clientX - w - 24 : e.clientX + 24;
+    const y = Math.min(Math.max(8, e.clientY - h / 2), innerHeight - h - 8);
+    preview.style.left = `${x}px`; preview.style.top = `${y}px`;
+  });
+
+  function seat(p, s, prev) {
+    const P = s.players[p];
+    const box = document.getElementById(`seat-${p}`);
+    box.classList.toggle("active", s.active === p && !s.terminal);
+    const before = prev ? prev.players[p].life : P.life;
+    box.innerHTML = `
+      <div class="who"><div class="deck">${esc(R.players[p])}</div><div class="agent">${esc(R.agents[p])}${p === R.first_player ? ", goes first" : ""}</div></div>
+      <div><div class="life${P.life < before ? " hit" : P.life > before ? " heal" : ""}">${P.life}</div><div class="life-label">life</div></div>
+      <div class="zones">
+        <span>Lands <b>${P.lands}</b> (${P.lands_untapped} untapped)</span>
+        <span>Library <b>${P.library}</b></span>
+        <span>Hand <b>${P.hand.length}</b></span>
+      </div>`;
+    const hand = el("div", "hand");
+    const reveal = document.getElementById("reveal").checked;
+    P.hand.forEach(id => hand.appendChild(reveal ? cardEl(id) : el("div", "hand-back")));
+    box.appendChild(hand);
+  }
+
+  function field(p, s, prev) {
+    const P = s.players[p];
+    const box = document.getElementById(`field-${p}`);
+    box.innerHTML = "";
+    P.creatures.forEach((cr, slot) => {
+      const cell = el("div", "slot");
+      if (cr) {
+        const was = prev && prev.players[p].creatures[slot];
+        const n = cardEl(cr.card, (n, c) => {
+          n.id = `c-${p}-${slot}`;
+          if (cr.tapped) n.classList.add("tapped");
+          if (cr.sick) n.classList.add("sick");
+          if (cr.attacking) n.classList.add("attacking");
+          if (cr.blocking >= 0) n.classList.add("blocking");
+          if (s.blocker === slot && p !== s.active) n.classList.add("current-blocker");
+          if (!was || was.card !== cr.card) n.classList.add("entered");
+          const pt = el("div", `pt${cr.pumped ? " pumped changed" : ""}`, `${cr.power}/${cr.toughness}`);
+          n.appendChild(pt);
+          if (cr.damage > 0) n.appendChild(el("div", "dmg", `${cr.damage}`));
+          const label = cr.attacking ? "attacking" : cr.blocking >= 0 ? "blocking" : (s.blocker === slot && p !== s.active) ? "choosing block" : cr.sick ? "summoning sick" : "";
+          if (label) n.appendChild(el("div", "badge", label));
+        });
+        cell.appendChild(n);
+      }
+      box.appendChild(cell);
+    });
+  }
+
+  function lane(f, s) {
+    const box = document.getElementById("lane");
+    const phase = s.terminal ? "" : s.phase;
+    const pills = PHASES.map(ph => `<span class="phase${ph === phase || (phase === "Target" && ph === f.phase) ? " now" : ""}">${ph}</span>`).join("");
+    const who = f.actor === null ? "Setup" : R.players[f.actor];
+    box.innerHTML = `
+      <div><div class="turn">Turn ${s.turn}</div><div class="phases">${pills}</div></div>
+      <div class="caption" aria-live="polite"><div class="who-acted">${esc(who)}</div><div class="what">${esc(f.text)}</div>${f.events.length ? `<div class="events">${f.events.map(esc).join("; ")}</div>` : ""}</div>
+      <div class="pending" id="pending"></div>`;
+    if (s.pending !== null) {
+      const p = document.getElementById("pending");
+      p.appendChild(document.createTextNode("Choosing a target"));
+      p.appendChild(cardEl(s.pending));
+    }
+  }
+
+  function links(s) {
+    const svg = document.getElementById("links");
+    const table = document.getElementById("table").getBoundingClientRect();
+    let out = "";
+    [0, 1].forEach(p => s.players[p].creatures.forEach((cr, slot) => {
+      if (!cr || cr.blocking < 0) return;
+      const a = document.getElementById(`c-${p}-${slot}`), b = document.getElementById(`c-${1 - p}-${cr.blocking}`);
+      if (!a || !b) return;
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const x1 = ra.left + ra.width / 2 - table.left, y1 = (p === 0 ? ra.top : ra.bottom) - table.top;
+      const x2 = rb.left + rb.width / 2 - table.left, y2 = (p === 0 ? rb.bottom : rb.top) - table.top;
+      out += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#e9e4d8" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/>`;
+    }));
+    svg.innerHTML = out;
+  }
+
+  function banner(s) {
+    const old = document.getElementById("banner");
+    if (old) old.remove();
+    if (!s.terminal) return;
+    const f = R.frames[idx];
+    const last = `${esc(R.players[f.actor])}: ${esc(f.text)}${f.events.length ? `. ${f.events.map(esc).join("; ")}` : ""}`;
+    const b = el("div", "banner", `<div class="big">${esc(R.result)}</div><div class="small">Final life: ${esc(R.players[0])} ${s.players[0].life}, ${esc(R.players[1])} ${s.players[1].life}</div><div class="last">${last}</div>`);
+    b.id = "banner";
+    document.getElementById("table").appendChild(b);
+  }
+
+  let idx = 0, timer = null;
+  function render(prevIdx) {
+    const f = R.frames[idx], s = f.state;
+    const prev = prevIdx >= 0 && prevIdx === idx - 1 ? R.frames[prevIdx].state : null;
+    seat(0, s, prev); seat(1, s, prev);
+    field(0, s, prev); field(1, s, prev);
+    lands(0, s); lands(1, s);
+    lane(f, s); banner(s);
+    requestAnimationFrame(() => setTimeout(() => links(s), 380));
+    entries.forEach((e, i) => e.classList.toggle("now", i === idx));
+    entries[idx].scrollIntoView({ block: "nearest" });
+    document.getElementById("scrub").value = idx;
+    document.getElementById("count").textContent = `Step ${idx} of ${R.frames.length - 1}`;
+  }
+  function go(i) {
+    const prevIdx = idx;
+    idx = Math.max(0, Math.min(R.frames.length - 1, i));
+    render(prevIdx);
+    if (idx === R.frames.length - 1) stop();
+  }
+  function stop() { clearInterval(timer); timer = null; document.getElementById("play").textContent = "Play"; }
+  function play() {
+    if (timer) return stop();
+    if (idx === R.frames.length - 1) go(0);
+    document.getElementById("play").textContent = "Pause";
+    timer = setInterval(() => go(idx + 1), Number(document.getElementById("speed").value));
+  }
+  function nextTurn() {
+    const t = R.frames[idx].state.turn;
+    const j = R.frames.findIndex((f, i) => i > idx && f.state.turn !== t);
+    go(j === -1 ? R.frames.length - 1 : j);
+  }
+
+  document.getElementById("first").onclick = () => go(0);
+  document.getElementById("prev").onclick = () => go(idx - 1);
+  document.getElementById("next").onclick = () => go(idx + 1);
+  document.getElementById("last").onclick = () => go(R.frames.length - 1);
+  document.getElementById("next-turn").onclick = nextTurn;
+  document.getElementById("play").onclick = play;
+  document.getElementById("scrub").oninput = e => go(Number(e.target.value));
+  document.getElementById("speed").onchange = () => { if (timer) { stop(); play(); } };
+  document.getElementById("reveal").onchange = () => render(-1);
+  window.addEventListener("resize", () => links(R.frames[idx].state));
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && e.target.type !== "checkbox") return;
+    if (e.key === "ArrowRight") go(idx + 1);
+    else if (e.key === "ArrowLeft") go(idx - 1);
+    else if (e.key === " ") { e.preventDefault(); play(); }
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(R.frames.length - 1);
+  });
+  render(-1);
+  loadImages();
+})();
+</script>
+</body>
+</html>

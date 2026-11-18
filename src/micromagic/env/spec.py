@@ -16,8 +16,6 @@ OPENING_HAND = 7
 HAND_SIZE = 7
 CREATURE_SLOTS = 5
 DECK_SIZE = 30
-# Card ids 0..NUM_CARDS-1. Fixed at 25 so OBS_DIM never changes as the
-# final card pool is filled in.
 NUM_CARDS = 25
 # A game still running after this many turns ends as a draw (truncation).
 MAX_TURNS = 50
@@ -52,15 +50,67 @@ class CardType(IntEnum):
     SPELL = 2
 
 
-# Card-id map. Ids 0-4 are the toy-mode cards used by the stub; ids 5-24 are
-# reserved for the final 25-card pool and are filled in by data/cards.json.
+class Keyword(IntEnum):
+    FLYING = 0
+    REACH = 1
+    HASTE = 2
+    TRAMPLE = 3
+    VIGILANCE = 4
+    DEATHTOUCH = 5
+    LIFELINK = 6
+    CANT_BLOCK = 7
+
+
+NUM_KEYWORDS = len(Keyword)
+
+
+class SpellTemplate(IntEnum):
+    BURN = 0       # deal `amount` damage to a target
+    DESTROY = 1    # destroy target creature
+    PUMP = 2       # target creature gets +amount/+amount until end of turn
+    DRAW = 3       # caster draws `amount` cards
+    GAIN_LIFE = 4  # caster gains `amount` life
+
+
+NUM_TEMPLATES = len(SpellTemplate)
+
+
+class TargetScope(IntEnum):
+    NONE = 0      # untargeted (draw, gain life)
+    ANY = 1       # the opponent or any creature
+    PLAYER = 2    # the opponent only
+    CREATURE = 3  # any creature
+
+
+# Card-id map: the 25-card pool. data/cards.json must match these ids.
 CARD_IDS: dict[str, int] = {
-    "Basic Land": 0,
-    "Toy Creature 1/1": 1,
-    "Toy Creature 2/2": 2,
-    "Toy Creature 3/3": 3,
-    "Toy Creature 4/4": 4,
+    "Mountain": 0,
+    "Forest": 1,
+    "Raging Goblin": 2,
+    "Suntail Hawk": 3,
+    "Goblin Piker": 4,
+    "Wind Drake": 5,
+    "Gray Ogre": 6,
+    "Hill Giant": 7,
+    "Charging Monstrosaur": 8,
+    "Shock": 9,
+    "Volcanic Hammer": 10,
+    "Lava Axe": 11,
+    "Giant Growth": 12,
+    "Typhoid Rats": 13,
+    "Healer's Hawk": 14,
+    "Grizzly Bears": 15,
+    "Deadly Recluse": 16,
+    "Child of Night": 17,
+    "Trained Armodon": 18,
+    "Giant Spider": 19,
+    "Eviscerate": 20,
+    "Divination": 21,
+    "Serra Angel": 22,
+    "Natural Spring": 23,
+    "Colossal Dreadmaw": 24,
 }
+DECK_NAMES: tuple[str, ...] = ("aggro", "midrange")
 
 
 # Observation layout (float32, every value scaled into [0, 1]).
@@ -82,8 +132,9 @@ GLOBAL_FEATURE_NAMES: tuple[str, ...] = (
 )
 GLOBAL_FEATURES = len(GLOBAL_FEATURE_NAMES)
 
-# Per card: one-hot id, then cost, power, toughness, is_land, is_creature, is_spell.
-CARD_FEATURES = NUM_CARDS + 6
+# Per card: one-hot id (25), cost, power, toughness, is_land, is_creature,
+# is_spell, keyword flags (8), spell-template one-hot (5), spell amount.
+CARD_FEATURES = NUM_CARDS + 6 + NUM_KEYWORDS + NUM_TEMPLATES + 1
 HAND_SLOT_FEATURES = 1 + CARD_FEATURES
 CREATURE_STATUS_NAMES: tuple[str, ...] = (
     "damage",
@@ -92,16 +143,20 @@ CREATURE_STATUS_NAMES: tuple[str, ...] = (
     "attacking",
     "blocking",
     "blocked",
+    "current_power",
+    "current_toughness",
 )
 CREATURE_SLOT_FEATURES = 1 + CARD_FEATURES + len(CREATURE_STATUS_NAMES)
 
 OBS_GLOBAL = slice(0, GLOBAL_FEATURES)
-OBS_HAND = slice(OBS_GLOBAL.stop, OBS_GLOBAL.stop + HAND_SIZE * HAND_SLOT_FEATURES)
+# The spell waiting for a target (all zeros outside CHOOSE_TARGET).
+OBS_PENDING_SPELL = slice(OBS_GLOBAL.stop, OBS_GLOBAL.stop + CARD_FEATURES)
+OBS_HAND = slice(OBS_PENDING_SPELL.stop, OBS_PENDING_SPELL.stop + HAND_SIZE * HAND_SLOT_FEATURES)
 OBS_MY_CREATURES = slice(OBS_HAND.stop, OBS_HAND.stop + CREATURE_SLOTS * CREATURE_SLOT_FEATURES)
 OBS_OPP_CREATURES = slice(
     OBS_MY_CREATURES.stop, OBS_MY_CREATURES.stop + CREATURE_SLOTS * CREATURE_SLOT_FEATURES
 )
-OBS_DIM = OBS_OPP_CREATURES.stop  # 622 = 18 + 7*32 + 2*5*38
+OBS_DIM = OBS_OPP_CREATURES.stop  # 925 = 18 + 45 + 7*46 + 2*5*54
 
 # Divisors used to scale raw counts into [0, 1].
 SCALE_LIFE = float(STARTING_LIFE)

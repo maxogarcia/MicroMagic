@@ -1,0 +1,11 @@
+# Determinized MCTS (PIMC + PUCT) against the uniform-random baseline.
+# python scripts/eval_mcts.py --config configs/mcts_vs_random.yaml
+seed: 0                   # MCTS and Random agent seeds
+base_seed: 200000         # game seeds base_seed .. base_seed + games - 1
+games: 100                # seats alternate every game; decks alternate every two games
+mcts:
+  determinizations: 4     # sampled worlds per decision
+  simulations: 64         # PUCT simulations per world
+  c_puct: 1.5
+  rollout_depth: 10       # random actions before the board score judges a leaf
+out_dir: results/mcts

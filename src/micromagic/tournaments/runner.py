@@ -135,7 +135,12 @@ class TournamentRunner:
                 obs = env.observe(curr_player)
                 mask = env.legal_actions()
 
-                action = active_agent.act(obs, mask)
+                # Search agents (e.g. MCTSAgent) plan on the game state; they only use
+                # determinize()d copies of it, so hidden information stays hidden.
+                if hasattr(active_agent, "act_from_state"):
+                    action = active_agent.act_from_state(env, curr_player)
+                else:
+                    action = active_agent.act(obs, mask)
 
                 if len(mask) > 0:
                     if action < 0 or action >= len(mask) or not bool(mask[action]):
